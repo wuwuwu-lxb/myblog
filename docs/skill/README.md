@@ -41,6 +41,19 @@
 
 这些不是 agent skill，而是前端组件库和设计系统索引。后续做文章编辑器、图片管理、知识库图谱、评论、dashboard、self-LLM 对话界面时，可以先从这里筛选成熟组件。
 
+## DESIGN.md 参考
+
+来源仓库：
+
+- `https://github.com/VoltAgent/awesome-design-md`
+
+已复制到：
+
+- `docs/skill/vendor/design-md/awesome-design-md.md`
+- `docs/skill/vendor/design-md/README.md`
+
+这部分不是组件库，而是视觉语言参考。后续做人格首页、主题页和 self-LLM 页面时，可以先挑选接近目标气质的 `DESIGN.md` 风格，再反推我们自己的视觉系统。
+
 ## 本项目自定义 skill
 
 - `docs/skill/llm-selfwiki-code-style/SKILL.md`
