@@ -6,6 +6,12 @@ import { NextResponse } from "next/server";
 const sessionCookieName = "selfwiki_session";
 const stateCookieName = "selfwiki_oauth_state";
 const sessionMaxAge = 60 * 60 * 24 * 14;
+const devUser: AuthUser = {
+  login: "local-dev",
+  id: 0,
+  avatarUrl: "",
+  name: "Local Dev",
+};
 
 export type AuthUser = {
   login: string;
@@ -29,7 +35,15 @@ export function isAuthConfigured() {
   return Boolean(config.clientId && config.clientSecret && config.allowedLogin && config.authSecret);
 }
 
+export function isDevAuthBypassEnabled() {
+  return process.env.NODE_ENV !== "production" && !isAuthConfigured();
+}
+
 export async function getCurrentUser() {
+  if (isDevAuthBypassEnabled()) {
+    return devUser;
+  }
+
   const cookieStore = await cookies();
   const value = cookieStore.get(sessionCookieName)?.value;
 
@@ -162,4 +176,3 @@ function safeEqual(left: string, right: string) {
 
   return timingSafeEqual(leftBuffer, rightBuffer);
 }
-

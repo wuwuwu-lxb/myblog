@@ -1,6 +1,6 @@
-import Image from "next/image";
 import { notFound } from "next/navigation";
 import { getContentBySlug, listContents } from "@/lib/db";
+import { MarkdownPreview } from "@/app/MarkdownPreview";
 import { GiscusComments } from "../GiscusComments";
 
 export const dynamic = "force-dynamic";
@@ -40,21 +40,8 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
         ))}
       </div>
 
-      {post.assets?.map((asset) => (
-        <section className="section panel" key={asset.id}>
-          <Image
-            src={`/assets/${asset.id}`}
-            alt={asset.alt}
-            width={960}
-            height={520}
-            style={{ width: "100%", height: "auto", borderRadius: 8 }}
-          />
-          <p className="muted">{asset.fileName}</p>
-        </section>
-      ))}
-
-      <section className="section panel">
-        <p>{post.body}</p>
+      <section className="section panel article-body">
+        <MarkdownPreview content={post.body} />
       </section>
 
       <GiscusComments term={post.slug} />

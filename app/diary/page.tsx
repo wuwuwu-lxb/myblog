@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CalendarDays, Clock3 } from "lucide-react";
+import { MarkdownPreview } from "@/app/MarkdownPreview";
 import { listContents, type ContentItem } from "@/lib/db";
 
 type DiaryPageProps = {
@@ -111,9 +112,7 @@ export default async function DiaryPage({ searchParams }: DiaryPageProps) {
               <h1>{mainItem.title}</h1>
               <p className="lead">{mainItem.summary || mainItem.body.slice(0, 96)}</p>
               <div className="diary-body">
-                {mainItem.body.split(/\n{2,}/).map((paragraph) => (
-                  <p key={paragraph}>{paragraph}</p>
-                ))}
+                <MarkdownPreview content={mainItem.body} />
               </div>
               {mainItem.tags.length > 0 ? (
                 <div className="tag-row">

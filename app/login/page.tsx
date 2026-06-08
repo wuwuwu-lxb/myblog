@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { KeyRound, LockKeyhole } from "lucide-react";
-import { getCurrentUser, isAuthConfigured } from "@/lib/auth";
+import { getCurrentUser, isAuthConfigured, isDevAuthBypassEnabled } from "@/lib/auth";
 
 type LoginPageProps = {
   searchParams: Promise<{
@@ -19,6 +19,7 @@ const errorMessages: Record<string, string> = {
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const user = await getCurrentUser();
   const { error } = await searchParams;
+  const devBypass = isDevAuthBypassEnabled();
 
   return (
     <div className="page auth-page">
@@ -32,13 +33,15 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         {user ? (
           <div className="actions">
             <Link className="button primary" href="/dashboard">
-              进入工作台
+              {devBypass ? "开发模式进入工作台" : "进入工作台"}
             </Link>
-            <form action="/api/auth/logout" method="post">
-              <button className="button" type="submit">
-                退出登录
-              </button>
-            </form>
+            {!devBypass ? (
+              <form action="/api/auth/logout" method="post">
+                <button className="button" type="submit">
+                  退出登录
+                </button>
+              </form>
+            ) : null}
           </div>
         ) : (
           <div className="actions">
@@ -50,7 +53,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         )}
 
         {error ? <p className="auth-error">{errorMessages[error] ?? "登录失败。"}</p> : null}
-        {!isAuthConfigured() ? (
+        {devBypass ? (
+          <p className="muted">当前是本地开发免登录模式。部署到生产环境后仍然需要配置 GitHub OAuth。</p>
+        ) : !isAuthConfigured() ? (
           <p className="muted">
             需要配置 `GITHUB_CLIENT_ID`、`GITHUB_CLIENT_SECRET`、`GITHUB_ALLOWED_LOGIN`、`AUTH_SECRET` 和
             `NEXT_PUBLIC_APP_URL`。

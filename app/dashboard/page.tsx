@@ -1,13 +1,21 @@
 import { Database, FileText, ImagePlus } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { listAssets, listCategories, listContents, listTags } from "@/lib/db";
+import { AdminNav } from "./AdminNav";
 import { DashboardComposer } from "./DashboardComposer";
 
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
+type DashboardPageProps = {
+  searchParams: Promise<{
+    edit?: string;
+  }>;
+};
+
+export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   await requireUser();
 
+  const { edit } = await searchParams;
   const contents = listContents();
   const assets = listAssets();
   const categories = listCategories();
@@ -38,6 +46,7 @@ export default async function DashboardPage() {
       <p className="lead">
         这里已经接入 SQLite 和图片上传。你保存的公开文章会出现在博客里，也会成为 self-LLM 的检索来源。
       </p>
+      <AdminNav />
 
       <section className="section grid-3">
         {stats.map((item) => {
@@ -52,7 +61,12 @@ export default async function DashboardPage() {
         })}
       </section>
 
-      <DashboardComposer initialContents={contents} categories={categories} tags={tags} />
+      <DashboardComposer
+        initialAssets={assets}
+        initialContent={contents.find((item) => item.id === edit) ?? null}
+        categories={categories}
+        tags={tags}
+      />
     </div>
   );
 }

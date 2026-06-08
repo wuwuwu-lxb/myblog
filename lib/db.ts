@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync } from "node:fs";
+import { unlinkSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
@@ -118,6 +119,7 @@ function migrate(database: DatabaseSync) {
       body TEXT NOT NULL DEFAULT '',
       tags_json TEXT NOT NULL DEFAULT '[]',
       visibility TEXT NOT NULL DEFAULT 'private',
+      cover_asset_id TEXT REFERENCES assets(id) ON DELETE SET NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -148,6 +150,7 @@ function migrate(database: DatabaseSync) {
   const columns = database.prepare("PRAGMA table_info(contents)").all() as { name: string }[];
   const hasCategory = columns.some((column) => column.name === "category");
   const hasCategoryId = columns.some((column) => column.name === "category_id");
+  const hasCoverAssetId = columns.some((column) => column.name === "cover_asset_id");
 
   if (!hasCategory) {
     database.exec("ALTER TABLE contents ADD COLUMN category TEXT NOT NULL DEFAULT '未分类';");
@@ -155,6 +158,10 @@ function migrate(database: DatabaseSync) {
 
   if (!hasCategoryId) {
     database.exec("ALTER TABLE contents ADD COLUMN category_id TEXT REFERENCES categories(id) ON DELETE SET NULL;");
+  }
+
+  if (!hasCoverAssetId) {
+    database.exec("ALTER TABLE contents ADD COLUMN cover_asset_id TEXT REFERENCES assets(id) ON DELETE SET NULL;");
   }
 }
 
@@ -367,10 +374,39 @@ export function getContentBySlug(slug: string) {
   return row ? mapContentRow(row) : null;
 }
 
+export function getContentById(id: string) {
+  const database = getDb();
+  const row = database
+    .prepare(
+      `
+      SELECT
+        c.id,
+        c.type,
+        c.title,
+        c.slug,
+        c.category_id AS categoryId,
+        COALESCE(cat.name, c.category, '未分类') AS category,
+        c.summary,
+        c.body,
+        c.tags_json AS tagsJson,
+        c.visibility,
+        c.created_at AS createdAt,
+        c.updated_at AS updatedAt
+      FROM contents c
+      LEFT JOIN categories cat ON cat.id = c.category_id
+      WHERE c.id = ?
+    `,
+    )
+    .get(id) as ContentRow | undefined;
+
+  return row ? mapContentRow(row) : null;
+}
+
 export function createContent(input: {
   type: ContentType;
   title: string;
   categoryId: string;
+  summary?: string;
   body: string;
   tagIds: string[];
   visibility: Visibility;
@@ -386,6 +422,98 @@ export function createContent(input: {
   });
 }
 
+export function updateContent(
+  id: string,
+  input: {
+    type: ContentType;
+    title: string;
+    categoryId: string;
+    summary?: string;
+    body: string;
+    tagIds: string[];
+    visibility: Visibility;
+    assetIds?: string[];
+  },
+) {
+  const database = getDb();
+  const existing = getContentById(id);
+
+  if (!existing) {
+    return null;
+  }
+
+  const now = new Date().toISOString();
+  const category = getCategoryWithDb(database, input.categoryId) ?? ensureCategory(database, defaultCategoryName);
+  const tagItems = input.tagIds
+    .map((tagId) => getTag(tagId))
+    .filter((tag): tag is TaxonomyItem => Boolean(tag));
+  const summary = input.summary?.trim() || input.body.trim().slice(0, 120);
+
+  database
+    .prepare(
+      `
+      UPDATE contents
+      SET type = ?, title = ?, category = ?, category_id = ?, summary = ?, body = ?, tags_json = ?, visibility = ?, updated_at = ?
+      WHERE id = ?
+    `,
+    )
+    .run(
+      input.type,
+      input.title.trim(),
+      category.name,
+      category.id,
+      summary,
+      input.body.trim(),
+      JSON.stringify(tagItems.map((tag) => tag.name)),
+      input.visibility,
+      now,
+      id,
+    );
+
+  database.prepare("DELETE FROM content_tags WHERE content_id = ?").run(id);
+  const linkTag = database.prepare("INSERT OR IGNORE INTO content_tags (content_id, tag_id) VALUES (?, ?)");
+  for (const tag of tagItems) {
+    linkTag.run(id, tag.id);
+  }
+
+  database.prepare("DELETE FROM content_assets WHERE content_id = ?").run(id);
+  if (input.assetIds?.length) {
+    const linkAsset = database.prepare("INSERT OR IGNORE INTO content_assets (content_id, asset_id) VALUES (?, ?)");
+    for (const assetId of input.assetIds) {
+      linkAsset.run(id, assetId);
+    }
+  }
+
+  return getContentById(id);
+}
+
+export function updateContentVisibility(id: string, visibility: Visibility) {
+  const database = getDb();
+  const existing = getContentById(id);
+
+  if (!existing) {
+    return null;
+  }
+
+  database
+    .prepare("UPDATE contents SET visibility = ?, updated_at = ? WHERE id = ?")
+    .run(visibility, new Date().toISOString(), id);
+
+  return getContentById(id);
+}
+
+export function deleteContent(id: string) {
+  const database = getDb();
+  const existing = getContentById(id);
+
+  if (!existing) {
+    return false;
+  }
+
+  database.prepare("DELETE FROM contents WHERE id = ?").run(id);
+  return true;
+}
+
 function createContentWithDb(
   database: DatabaseSync,
   input: {
@@ -394,6 +522,7 @@ function createContentWithDb(
     title: string;
     slug: string;
     categoryId: string;
+    summary?: string;
     body: string;
     tags: string[];
     visibility: Visibility;
@@ -403,7 +532,7 @@ function createContentWithDb(
   const now = new Date().toISOString();
   const category = getCategoryWithDb(database, input.categoryId) ?? ensureCategory(database, defaultCategoryName);
   const tagItems = input.tags.map((tagName) => ensureTag(database, tagName));
-  const summary = input.body.trim().slice(0, 120);
+  const summary = input.summary?.trim() || input.body.trim().slice(0, 120);
 
   database
     .prepare(
@@ -477,6 +606,53 @@ export function createCategory(name: string, description = "") {
 
 export function createTag(name: string, description = "") {
   return ensureTag(getDb(), name, description);
+}
+
+export function deleteCategories(ids: string[]) {
+  const database = getDb();
+  const uniqueIds = Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean)));
+
+  if (uniqueIds.length === 0) {
+    return 0;
+  }
+
+  const fallback = ensureCategory(database, defaultCategoryName);
+  const updateContent = database.prepare("UPDATE contents SET category_id = ?, category = ?, updated_at = ? WHERE category_id = ?");
+  const deleteCategory = database.prepare("DELETE FROM categories WHERE id = ? AND id != ?");
+  let deleted = 0;
+
+  for (const id of uniqueIds) {
+    if (id === fallback.id) {
+      continue;
+    }
+
+    updateContent.run(fallback.id, fallback.name, new Date().toISOString(), id);
+    const result = deleteCategory.run(id, fallback.id);
+    deleted += Number(result.changes);
+  }
+
+  return deleted;
+}
+
+export function deleteTags(ids: string[]) {
+  const database = getDb();
+  const uniqueIds = Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean)));
+
+  if (uniqueIds.length === 0) {
+    return 0;
+  }
+
+  const deleteLinks = database.prepare("DELETE FROM content_tags WHERE tag_id = ?");
+  const deleteTag = database.prepare("DELETE FROM tags WHERE id = ?");
+  let deleted = 0;
+
+  for (const id of uniqueIds) {
+    deleteLinks.run(id);
+    const result = deleteTag.run(id);
+    deleted += Number(result.changes);
+  }
+
+  return deleted;
 }
 
 export function getCategory(id: string) {
@@ -596,6 +772,14 @@ export function getAsset(id: string) {
   return row ? mapAssetRow(row) : null;
 }
 
+export function getAssetUsageCount(id: string) {
+  const row = getDb()
+    .prepare("SELECT COUNT(*) AS count FROM content_assets WHERE asset_id = ?")
+    .get(id) as { count: number };
+
+  return row.count;
+}
+
 export function listAssets() {
   const rows = getDb()
     .prepare(
@@ -661,6 +845,29 @@ export function createAsset(input: {
     .run(id, input.fileName, input.mimeType, input.sizeBytes, input.storagePath, input.alt ?? "", now);
 
   return getAsset(id);
+}
+
+export function deleteAsset(id: string) {
+  const database = getDb();
+  const asset = getAsset(id);
+
+  if (!asset) {
+    return { ok: false, reason: "missing" as const };
+  }
+
+  if (getAssetUsageCount(id) > 0) {
+    return { ok: false, reason: "in-use" as const };
+  }
+
+  database.prepare("DELETE FROM assets WHERE id = ?").run(id);
+
+  try {
+    unlinkSync(asset.storagePath);
+  } catch {
+    // The database row is the source of truth; a missing file should not block cleanup.
+  }
+
+  return { ok: true, reason: null };
 }
 
 export function searchPublicContent(query: string) {

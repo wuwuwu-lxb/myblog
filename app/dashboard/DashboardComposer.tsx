@@ -1,33 +1,45 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ImagePlus, Save } from "lucide-react";
+import { useState } from "react";
+import Link from "next/link";
+import { ImagePlus, Save, TextCursorInput } from "lucide-react";
+import { MarkdownPreview } from "@/app/MarkdownPreview";
 import type { ContentItem, ContentType, MediaAsset, TaxonomyItem, Visibility } from "@/lib/db";
 
 type DashboardComposerProps = {
-  initialContents: ContentItem[];
+  initialContent: ContentItem | null;
+  initialAssets: MediaAsset[];
   categories: TaxonomyItem[];
   tags: TaxonomyItem[];
 };
 
-export function DashboardComposer({ initialContents, categories, tags }: DashboardComposerProps) {
-  const [contents, setContents] = useState(initialContents);
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
-  const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
-  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
-  const [type, setType] = useState<ContentType>("entry");
-  const [visibility, setVisibility] = useState<Visibility>("private");
-  const [assetIds, setAssetIds] = useState<string[]>([]);
-  const [uploadedAssets, setUploadedAssets] = useState<MediaAsset[]>([]);
-  const [status, setStatus] = useState("准备记录。");
+export function DashboardComposer({ initialContent, initialAssets, categories, tags }: DashboardComposerProps) {
+  const [assets, setAssets] = useState(initialAssets);
+  const [title, setTitle] = useState(initialContent?.title ?? "");
+  const [summary, setSummary] = useState(initialContent?.summary ?? "");
+  const [body, setBody] = useState(initialContent?.body ?? "");
+  const [categoryId, setCategoryId] = useState(initialContent?.categoryId ?? categories[0]?.id ?? "");
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>(initialContent?.tagIds ?? []);
+  const [type, setType] = useState<ContentType>(initialContent?.type ?? "entry");
+  const [visibility, setVisibility] = useState<Visibility>(initialContent?.visibility ?? "private");
+  const [assetIds, setAssetIds] = useState<string[]>(initialContent?.assets.map((asset) => asset.id) ?? []);
+  const [status, setStatus] = useState(initialContent ? `正在编辑：${initialContent.title}` : "准备记录。");
+  const [lastSaved, setLastSaved] = useState<ContentItem | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
-  const publicCount = useMemo(
-    () => contents.filter((item) => item.visibility === "public").length,
-    [contents],
-  );
+  function toggleAsset(assetId: string) {
+    setAssetIds((current) =>
+      current.includes(assetId) ? current.filter((id) => id !== assetId) : [...current, assetId],
+    );
+  }
+
+  function insertImage(asset: MediaAsset) {
+    const imageMarkdown = `\n\n![${asset.alt || asset.fileName}](/assets/${asset.id})\n\n`;
+    setBody((current) => `${current}${imageMarkdown}`);
+    setAssetIds((current) => (current.includes(asset.id) ? current : [...current, asset.id]));
+    setStatus("图片已插入正文。");
+  }
 
   async function handleUpload(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -55,9 +67,9 @@ export function DashboardComposer({ initialContents, categories, tags }: Dashboa
       return;
     }
 
-    setUploadedAssets((current) => [result.asset, ...current]);
+    setAssets((current) => [result.asset, ...current]);
     setAssetIds((current) => [result.asset.id, ...current]);
-    setStatus("图片已上传，会随下一条内容一起保存关联。");
+    setStatus("图片已上传并选中。");
     event.target.value = "";
   }
 
@@ -66,8 +78,8 @@ export function DashboardComposer({ initialContents, categories, tags }: Dashboa
     setIsSaving(true);
     setStatus("正在保存。");
 
-    const response = await fetch("/api/entries", {
-      method: "POST",
+    const response = await fetch(initialContent ? `/api/entries/${initialContent.id}` : "/api/entries", {
+      method: initialContent ? "PATCH" : "POST",
       headers: {
         "Content-Type": "application/json",
       },
@@ -75,6 +87,7 @@ export function DashboardComposer({ initialContents, categories, tags }: Dashboa
         type,
         title,
         categoryId,
+        summary,
         body,
         tagIds: selectedTagIds,
         visibility,
@@ -90,20 +103,26 @@ export function DashboardComposer({ initialContents, categories, tags }: Dashboa
       return;
     }
 
-    setContents((current) => [result.content, ...current]);
     setTitle("");
+    setSummary("");
     setBody("");
-    setCategoryId(categories[0]?.id ?? "");
     setSelectedTagIds([]);
     setAssetIds([]);
-    setUploadedAssets([]);
-    setStatus("已保存到 SQLite。公开内容会进入博客和 self-LLM 检索来源。");
+    setLastSaved(result.content);
+    setStatus(initialContent ? "已更新内容。" : "已保存到 SQLite。");
   }
+
+  const lastSavedHref =
+    lastSaved?.type === "post" && lastSaved.visibility === "public"
+      ? `/blog/${lastSaved.slug}`
+      : lastSaved?.type === "entry" && lastSaved.visibility === "public"
+        ? `/diary?date=${lastSaved.updatedAt.slice(0, 10)}`
+        : null;
 
   return (
     <section className="section dashboard-grid">
       <form className="panel" onSubmit={handleSubmit}>
-        <h2>今日收集箱</h2>
+        <h2>{initialContent ? "编辑内容" : "工作区"}</h2>
         <div className="form-grid">
           <label>
             <span>标题</span>
@@ -111,7 +130,7 @@ export function DashboardComposer({ initialContents, categories, tags }: Dashboa
               className="input"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
-              placeholder="例如：今天关于 self-LLM 的想法"
+              placeholder="写一个标题"
               required
             />
           </label>
@@ -148,6 +167,16 @@ export function DashboardComposer({ initialContents, categories, tags }: Dashboa
           </label>
         </div>
 
+        <label className="block-label">
+          <span>摘要</span>
+          <input
+            className="input"
+            value={summary}
+            onChange={(event) => setSummary(event.target.value)}
+            placeholder="不填会自动截取正文前 120 字。"
+          />
+        </label>
+
         <div className="block-label">
           <span>标签</span>
           <div className="choice-grid">
@@ -177,76 +206,68 @@ export function DashboardComposer({ initialContents, categories, tags }: Dashboa
             className="textarea"
             value={body}
             onChange={(event) => setBody(event.target.value)}
-            placeholder="记录日记、想法、文章草稿或可公开记忆。"
+            placeholder="支持 Markdown，也可以从右侧媒体库插入图片。"
             required
           />
         </label>
 
-        {uploadedAssets.length > 0 ? (
-          <div className="asset-strip">
-            {uploadedAssets.map((asset) => (
-              <figure key={asset.id}>
-                <img src={`/assets/${asset.id}`} alt={asset.alt} />
-                <figcaption>{asset.fileName}</figcaption>
-              </figure>
-            ))}
-          </div>
-        ) : null}
-
         <div className="actions">
           <button className="button primary" type="submit" disabled={isSaving || !categoryId}>
             <Save aria-hidden="true" size={17} />
-            {isSaving ? "保存中" : "保存记录"}
+            {isSaving ? "保存中" : initialContent ? "更新内容" : "保存记录"}
           </button>
           <label className="button file-button">
             <ImagePlus aria-hidden="true" size={17} />
-            {isUploading ? "上传中" : "添加图片"}
+            {isUploading ? "上传中" : "上传图片"}
             <input accept="image/*" type="file" onChange={handleUpload} />
           </label>
         </div>
-        <p className="muted">{status}</p>
+        <div className="save-status">
+          <p className="muted">{status}</p>
+          {lastSavedHref ? (
+            <Link className="text-link" href={lastSavedHref}>
+              打开刚保存的公开内容
+            </Link>
+          ) : lastSaved ? (
+            <span className="muted">刚保存的是私有/草稿内容。</span>
+          ) : null}
+        </div>
       </form>
 
       <aside className="side-stack">
-        <section className="panel">
-          <h2>当前状态</h2>
-          <ul className="status-list">
-            <li>
-              <span>内容总数</span>
-              <strong>{contents.length}</strong>
-            </li>
-            <li>
-              <span>公开来源</span>
-              <strong>{publicCount}</strong>
-            </li>
-            <li>
-              <span>已关联待保存图片</span>
-              <strong>{assetIds.length}</strong>
-            </li>
-          </ul>
+        <section className="panel live-preview">
+          <div className="board-header">
+            <span>PREVIEW</span>
+            <strong>{type}</strong>
+          </div>
+          <h2>{title || "实时预览"}</h2>
+          {summary ? <p className="lead">{summary}</p> : null}
+          <MarkdownPreview content={body} />
         </section>
 
         <section className="panel">
-          <h2>近期内容</h2>
-          <div className="source-list">
-            {contents.map((item) => (
-              <article className="source-card" key={item.id}>
-                <div className="module-meta">
-                  <span>{item.type}</span>
-                  <span>{item.category}</span>
-                  <span>{item.visibility}</span>
-                </div>
-                <h3>{item.title}</h3>
-                <p>{item.summary}</p>
-                <div className="tag-row">
-                  {item.tags.map((tag) => (
-                    <span className="tag" key={tag}>
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              </article>
-            ))}
+          <h2>媒体资产</h2>
+          <div className="asset-strip media-library">
+            {assets.map((asset) => {
+              const selected = assetIds.includes(asset.id);
+
+              return (
+                <figure className={selected ? "selected" : ""} key={asset.id}>
+                  <img src={`/assets/${asset.id}`} alt={asset.alt} />
+                  <figcaption>
+                    <span>{asset.fileName}</span>
+                    <button className="asset-action" type="button" onClick={() => toggleAsset(asset.id)}>
+                      {selected ? "已选" : "选择"}
+                    </button>
+                    <button className="asset-action" type="button" onClick={() => insertImage(asset)}>
+                      <TextCursorInput aria-hidden="true" size={13} />
+                      插入
+                    </button>
+                  </figcaption>
+                </figure>
+              );
+            })}
+            {assets.length === 0 ? <p className="muted">还没有上传图片。</p> : null}
           </div>
         </section>
       </aside>
