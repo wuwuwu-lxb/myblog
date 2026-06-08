@@ -10,6 +10,7 @@
 - `https://github.com/shadcn-ui/ui`
 - `https://github.com/mattbx/shadcn-skills`
 - `https://github.com/mxyhi/ok-skills`
+- `https://github.com/Leonxlnx/taste-skill`
 
 已复制到：
 
@@ -23,8 +24,9 @@
 - `docs/skill/vendor/shadcn-skills/skills/shadcn-component-discovery`
 - `docs/skill/vendor/shadcn-skills/skills/shadcn-component-review`
 - `docs/skill/vendor/ok-skills/frontend-skill`
+- `docs/skill/vendor/taste-skill/skills`
 
-这些 skill 不是本项目最终设计规范，只是参考材料。后续做前端改版时，可以从中吸收工程方法、测试方式、质量标准、shadcn 组件发现流程和更现代的视觉构图方式。
+这些 skill 不是本项目最终设计规范，只是参考材料。后续做前端改版时，可以从中吸收工程方法、测试方式、质量标准、shadcn 组件发现流程、现代视觉构图方式和更强的前端审美约束。
 
 ## React 组件库参考
 
