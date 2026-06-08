@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Send } from "lucide-react";
+import { startTransition, useDeferredValue, useMemo, useState } from "react";
+import { CornerDownLeft, FileText, Send } from "lucide-react";
 import type { ContentItem } from "@/lib/db";
 
 type ChatMessage = {
@@ -11,11 +11,12 @@ type ChatMessage = {
 
 export function SelfChat() {
   const [question, setQuestion] = useState("");
+  const deferredQuestion = useDeferredValue(question);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "assistant",
       content:
-        "你好，我是当前原型里的 self-LLM。现在还没有接真实模型，但已经按“公开资料 + 人格边界 + 来源约束”的方式设计交互。",
+        "我是当前原型里的 self-LLM。你可以问我长期关注什么、这个项目为什么不是普通博客，或者某个主题背后有哪些公开来源。",
     },
   ]);
   const [sources, setSources] = useState<ContentItem[]>([]);
@@ -35,9 +36,11 @@ export function SelfChat() {
       return;
     }
 
-    setIsSending(true);
-    setMessages((current) => [...current, { role: "user", content: trimmed }]);
-    setQuestion("");
+    startTransition(() => {
+      setIsSending(true);
+      setMessages((current) => [...current, { role: "user", content: trimmed }]);
+      setQuestion("");
+    });
 
     const response = await fetch("/api/chat", {
       method: "POST",
@@ -48,18 +51,24 @@ export function SelfChat() {
     });
 
     const result = await response.json();
-    setIsSending(false);
+    startTransition(() => {
+      setIsSending(false);
+    });
 
     if (!response.ok) {
-      setMessages((current) => [
-        ...current,
-        { role: "assistant", content: result.error ?? "对话失败。" },
-      ]);
+      startTransition(() => {
+        setMessages((current) => [
+          ...current,
+          { role: "assistant", content: result.error ?? "对话失败。" },
+        ]);
+      });
       return;
     }
 
-    setSources(result.sources);
-    setMessages((current) => [...current, { role: "assistant", content: result.answer }]);
+    startTransition(() => {
+      setSources(result.sources);
+      setMessages((current) => [...current, { role: "assistant", content: result.answer }]);
+    });
   }
 
   return (
@@ -68,6 +77,7 @@ export function SelfChat() {
         <div className="chat-log">
           {messages.map((message, index) => (
             <div className={`message ${message.role}`} key={`${message.role}-${index}`}>
+              <span>{message.role === "assistant" ? "self" : "you"}</span>
               {message.content}
             </div>
           ))}
@@ -75,7 +85,7 @@ export function SelfChat() {
         <form className="chat-form" onSubmit={handleSubmit}>
           <input
             aria-label="提问"
-            placeholder="问问这个 AI 分身：这个项目和普通博客有什么不同？"
+            placeholder="问：你最近长期关注什么？"
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
           />
@@ -111,12 +121,19 @@ export function SelfChat() {
           <div className="source-list">
             {latestAnswer.sources.map((source) => (
               <article className="source-card" key={source.id}>
+                <FileText aria-hidden="true" size={18} />
                 <h3>{source.title}</h3>
                 <p>{source.summary}</p>
               </article>
             ))}
             {latestAnswer.sources.length === 0 ? <p className="muted">还没有检索来源。</p> : null}
           </div>
+          {deferredQuestion ? (
+            <div className="query-echo">
+              <CornerDownLeft aria-hidden="true" size={15} />
+              <span>{deferredQuestion}</span>
+            </div>
+          ) : null}
         </section>
       </aside>
     </div>

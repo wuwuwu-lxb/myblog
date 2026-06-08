@@ -73,4 +73,3 @@ export function BlogIndex({ title, description, posts, categories, tags }: BlogI
     </div>
   );
 }
-
