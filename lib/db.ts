@@ -5,6 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 
 export type Visibility = "private" | "draft" | "public";
 export type ContentType = "entry" | "note" | "post" | "memory";
+export type AssetUsageScope = "inline" | "reusable";
 
 export type TaxonomyItem = {
   id: string;
@@ -25,6 +26,7 @@ export type MediaAsset = {
   sizeBytes: number;
   storagePath: string;
   alt: string;
+  usageScope: AssetUsageScope;
   createdAt: string;
 };
 
@@ -40,11 +42,67 @@ export type ContentItem = {
   tags: string[];
   tagIds: string[];
   visibility: Visibility;
+  publishedAt: string;
   createdAt: string;
   updatedAt: string;
+  viewCount: number;
   coverAssetId: string;
   coverAsset: MediaAsset | null;
   assets: MediaAsset[];
+};
+
+export type ContentListItem = {
+  id: string;
+  type: ContentType;
+  title: string;
+  slug: string;
+  category: string;
+  summary: string;
+  visibility: Visibility;
+  publishedAt: string;
+  updatedAt: string;
+  viewCount: number;
+};
+
+export type DashboardStats = {
+  contentCount: number;
+  assetCount: number;
+  publicSourceCount: number;
+};
+
+export type SiteStats = {
+  startedAt: string;
+  totalPublicContent: number;
+  totalPosts: number;
+  totalDiaryEntries: number;
+  totalVisits: number;
+  uniqueVisitors: number;
+  totalWords: number;
+};
+
+export type OnlineStatus = {
+  id: string;
+  message: string;
+  createdAt: string;
+  expiresAt: string;
+};
+
+export type VisitGeo = {
+  country?: string;
+  region?: string;
+  city?: string;
+  latitude?: number;
+  longitude?: number;
+};
+
+export type VisitorLocation = {
+  country: string;
+  region: string;
+  city: string;
+  latitude: number;
+  longitude: number;
+  count: number;
+  lastSeenAt: string;
 };
 
 type ContentRow = {
@@ -58,9 +116,24 @@ type ContentRow = {
   body: string;
   tagsJson: string;
   visibility: Visibility;
+  publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  viewCount: number;
   coverAssetId: string | null;
+};
+
+type ContentListRow = {
+  id: string;
+  type: ContentType;
+  title: string;
+  slug: string;
+  category: string;
+  summary: string;
+  visibility: Visibility;
+  publishedAt: string;
+  updatedAt: string;
+  viewCount: number;
 };
 
 type AssetRow = Omit<MediaAsset, "sizeBytes"> & {
@@ -122,9 +195,11 @@ function migrate(database: DatabaseSync) {
       body TEXT NOT NULL DEFAULT '',
       tags_json TEXT NOT NULL DEFAULT '[]',
       visibility TEXT NOT NULL DEFAULT 'private',
+      published_at TEXT,
       cover_asset_id TEXT REFERENCES assets(id) ON DELETE SET NULL,
       created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL,
+      view_count INTEGER NOT NULL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS content_tags (
@@ -140,6 +215,7 @@ function migrate(database: DatabaseSync) {
       size_bytes INTEGER NOT NULL,
       storage_path TEXT NOT NULL,
       alt TEXT NOT NULL DEFAULT '',
+      usage_scope TEXT NOT NULL DEFAULT 'inline',
       created_at TEXT NOT NULL
     );
 
@@ -148,12 +224,36 @@ function migrate(database: DatabaseSync) {
       asset_id TEXT NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
       PRIMARY KEY (content_id, asset_id)
     );
+
+    CREATE TABLE IF NOT EXISTS site_visits (
+      id TEXT PRIMARY KEY,
+      path TEXT NOT NULL,
+      ip_address TEXT NOT NULL DEFAULT '',
+      visitor_id TEXT NOT NULL DEFAULT '',
+      event_type TEXT NOT NULL DEFAULT 'site',
+      user_agent TEXT NOT NULL DEFAULT '',
+      country TEXT NOT NULL DEFAULT '',
+      region TEXT NOT NULL DEFAULT '',
+      city TEXT NOT NULL DEFAULT '',
+      latitude REAL,
+      longitude REAL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS online_statuses (
+      id TEXT PRIMARY KEY,
+      message TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL
+    );
   `);
 
   const columns = database.prepare("PRAGMA table_info(contents)").all() as { name: string }[];
   const hasCategory = columns.some((column) => column.name === "category");
   const hasCategoryId = columns.some((column) => column.name === "category_id");
   const hasCoverAssetId = columns.some((column) => column.name === "cover_asset_id");
+  const hasPublishedAt = columns.some((column) => column.name === "published_at");
+  const hasViewCount = columns.some((column) => column.name === "view_count");
 
   if (!hasCategory) {
     database.exec("ALTER TABLE contents ADD COLUMN category TEXT NOT NULL DEFAULT '未分类';");
@@ -165,6 +265,59 @@ function migrate(database: DatabaseSync) {
 
   if (!hasCoverAssetId) {
     database.exec("ALTER TABLE contents ADD COLUMN cover_asset_id TEXT REFERENCES assets(id) ON DELETE SET NULL;");
+  }
+
+  if (!hasPublishedAt) {
+    database.exec("ALTER TABLE contents ADD COLUMN published_at TEXT;");
+    database.exec("UPDATE contents SET published_at = created_at WHERE published_at IS NULL;");
+  }
+
+  if (!hasViewCount) {
+    database.exec("ALTER TABLE contents ADD COLUMN view_count INTEGER NOT NULL DEFAULT 0;");
+  }
+
+  const assetColumns = database.prepare("PRAGMA table_info(assets)").all() as { name: string }[];
+  const hasUsageScope = assetColumns.some((column) => column.name === "usage_scope");
+
+  if (!hasUsageScope) {
+    database.exec("ALTER TABLE assets ADD COLUMN usage_scope TEXT NOT NULL DEFAULT 'inline';");
+  }
+
+  const visitColumns = database.prepare("PRAGMA table_info(site_visits)").all() as { name: string }[];
+  const hasVisitorId = visitColumns.some((column) => column.name === "visitor_id");
+  const hasEventType = visitColumns.some((column) => column.name === "event_type");
+  const hasCountry = visitColumns.some((column) => column.name === "country");
+  const hasRegion = visitColumns.some((column) => column.name === "region");
+  const hasCity = visitColumns.some((column) => column.name === "city");
+  const hasLatitude = visitColumns.some((column) => column.name === "latitude");
+  const hasLongitude = visitColumns.some((column) => column.name === "longitude");
+
+  if (!hasVisitorId) {
+    database.exec("ALTER TABLE site_visits ADD COLUMN visitor_id TEXT NOT NULL DEFAULT '';");
+  }
+
+  if (!hasEventType) {
+    database.exec("ALTER TABLE site_visits ADD COLUMN event_type TEXT NOT NULL DEFAULT 'site';");
+  }
+
+  if (!hasCountry) {
+    database.exec("ALTER TABLE site_visits ADD COLUMN country TEXT NOT NULL DEFAULT '';");
+  }
+
+  if (!hasRegion) {
+    database.exec("ALTER TABLE site_visits ADD COLUMN region TEXT NOT NULL DEFAULT '';");
+  }
+
+  if (!hasCity) {
+    database.exec("ALTER TABLE site_visits ADD COLUMN city TEXT NOT NULL DEFAULT '';");
+  }
+
+  if (!hasLatitude) {
+    database.exec("ALTER TABLE site_visits ADD COLUMN latitude REAL;");
+  }
+
+  if (!hasLongitude) {
+    database.exec("ALTER TABLE site_visits ADD COLUMN longitude REAL;");
   }
 }
 
@@ -265,8 +418,10 @@ function mapContentRow(row: ContentRow): ContentItem {
     summary: row.summary,
     body: row.body,
     visibility: row.visibility,
+    publishedAt: row.publishedAt ?? row.createdAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    viewCount: row.viewCount,
     coverAssetId: row.coverAssetId ?? "",
     coverAsset: row.coverAssetId ? getAsset(row.coverAssetId) : null,
     tags: tags.map((tag) => tag.name),
@@ -283,7 +438,23 @@ function mapAssetRow(row: AssetRow): MediaAsset {
     sizeBytes: row.sizeBytes,
     storagePath: row.storagePath,
     alt: row.alt,
+    usageScope: row.usageScope,
     createdAt: row.createdAt,
+  };
+}
+
+function mapContentListRow(row: ContentListRow): ContentListItem {
+  return {
+    id: row.id,
+    type: row.type,
+    title: row.title,
+    slug: row.slug,
+    category: row.category || defaultCategoryName,
+    summary: row.summary,
+    visibility: row.visibility,
+    publishedAt: row.publishedAt,
+    updatedAt: row.updatedAt,
+    viewCount: row.viewCount,
   };
 }
 
@@ -339,18 +510,107 @@ export function listContents(
         c.body,
         c.tags_json AS tagsJson,
         c.visibility,
+        COALESCE(c.published_at, c.created_at) AS publishedAt,
         c.created_at AS createdAt,
         c.updated_at AS updatedAt,
+        c.view_count AS viewCount,
         c.cover_asset_id AS coverAssetId
       FROM contents c
       LEFT JOIN categories cat ON cat.id = c.category_id
       ${where}
-      ORDER BY c.updated_at DESC
+      ORDER BY COALESCE(c.published_at, c.created_at) DESC, c.updated_at DESC
     `,
     )
     .all(...params) as ContentRow[];
 
   return rows.map(mapContentRow);
+}
+
+export function listContentSummaries() {
+  const rows = getDb()
+    .prepare(
+      `
+      SELECT
+        c.id,
+        c.type,
+        c.title,
+        c.slug,
+        COALESCE(cat.name, c.category, '未分类') AS category,
+        c.summary,
+        c.visibility,
+        COALESCE(c.published_at, c.created_at) AS publishedAt,
+        c.updated_at AS updatedAt,
+        c.view_count AS viewCount
+      FROM contents c
+      LEFT JOIN categories cat ON cat.id = c.category_id
+      ORDER BY COALESCE(c.published_at, c.created_at) DESC, c.updated_at DESC
+    `,
+    )
+    .all() as ContentListRow[];
+
+  return rows.map(mapContentListRow);
+}
+
+export function getDashboardStats(): DashboardStats {
+  const database = getDb();
+  const contentCount = database.prepare("SELECT COUNT(*) AS count FROM contents").get() as { count: number };
+  const assetCount = database.prepare("SELECT COUNT(*) AS count FROM assets").get() as { count: number };
+  const publicSourceCount = database
+    .prepare("SELECT COUNT(*) AS count FROM contents WHERE visibility = 'public'")
+    .get() as { count: number };
+
+  return {
+    contentCount: contentCount.count,
+    assetCount: assetCount.count,
+    publicSourceCount: publicSourceCount.count,
+  };
+}
+
+export function getSiteStats(): SiteStats {
+  const database = getDb();
+  const fallbackStart = new Date().toISOString();
+  const startedAt = database
+    .prepare(
+      `
+      SELECT COALESCE(MIN(created_at), ?) AS startedAt
+      FROM contents
+    `,
+    )
+    .get(fallbackStart) as { startedAt: string };
+  const totalPublicContent = database
+    .prepare("SELECT COUNT(*) AS count FROM contents WHERE visibility = 'public'")
+    .get() as { count: number };
+  const totalPosts = database
+    .prepare("SELECT COUNT(*) AS count FROM contents WHERE visibility = 'public' AND type = 'post'")
+    .get() as { count: number };
+  const totalDiaryEntries = database
+    .prepare("SELECT COUNT(*) AS count FROM contents WHERE visibility = 'public' AND type = 'entry'")
+    .get() as { count: number };
+  const totalVisits = database
+    .prepare("SELECT COUNT(*) AS count FROM site_visits WHERE event_type = 'site'")
+    .get() as { count: number };
+  const uniqueVisitors = database
+    .prepare(
+      `
+      SELECT COUNT(DISTINCT COALESCE(NULLIF(visitor_id, ''), NULLIF(ip_address, ''))) AS count
+      FROM site_visits
+      WHERE event_type = 'site' AND (visitor_id != '' OR ip_address != '')
+    `,
+    )
+    .get() as { count: number };
+  const totalWords = database
+    .prepare("SELECT COALESCE(SUM(LENGTH(body)), 0) AS count FROM contents WHERE visibility = 'public'")
+    .get() as { count: number };
+
+  return {
+    startedAt: startedAt.startedAt,
+    totalPublicContent: totalPublicContent.count,
+    totalPosts: totalPosts.count,
+    totalDiaryEntries: totalDiaryEntries.count,
+    totalVisits: totalVisits.count,
+    uniqueVisitors: uniqueVisitors.count,
+    totalWords: totalWords.count,
+  };
 }
 
 export function getContentBySlug(slug: string) {
@@ -369,8 +629,10 @@ export function getContentBySlug(slug: string) {
         c.body,
         c.tags_json AS tagsJson,
         c.visibility,
+        COALESCE(c.published_at, c.created_at) AS publishedAt,
         c.created_at AS createdAt,
         c.updated_at AS updatedAt,
+        c.view_count AS viewCount,
         c.cover_asset_id AS coverAssetId
       FROM contents c
       LEFT JOIN categories cat ON cat.id = c.category_id
@@ -398,8 +660,10 @@ export function getContentById(id: string) {
         c.body,
         c.tags_json AS tagsJson,
         c.visibility,
+        COALESCE(c.published_at, c.created_at) AS publishedAt,
         c.created_at AS createdAt,
         c.updated_at AS updatedAt,
+        c.view_count AS viewCount,
         c.cover_asset_id AS coverAssetId
       FROM contents c
       LEFT JOIN categories cat ON cat.id = c.category_id
@@ -419,6 +683,7 @@ export function createContent(input: {
   body: string;
   tagIds: string[];
   visibility: Visibility;
+  publishedAt?: string;
   assetIds?: string[];
   coverAssetId?: string;
 }) {
@@ -426,6 +691,7 @@ export function createContent(input: {
     ...input,
     id: crypto.randomUUID(),
     slug: createSlug(input.title, crypto.randomUUID()),
+    publishedAt: input.publishedAt,
     tags: input.tagIds
       .map((tagId) => getTag(tagId)?.name)
       .filter((name): name is string => Boolean(name)),
@@ -442,6 +708,7 @@ export function updateContent(
     body: string;
     tagIds: string[];
     visibility: Visibility;
+    publishedAt?: string;
     assetIds?: string[];
     coverAssetId?: string;
   },
@@ -454,6 +721,7 @@ export function updateContent(
   }
 
   const now = new Date().toISOString();
+  const publishedAt = normalizeDateInput(input.publishedAt) ?? existing.publishedAt ?? existing.createdAt;
   const category = getCategoryWithDb(database, input.categoryId) ?? ensureCategory(database, defaultCategoryName);
   const tagItems = input.tagIds
     .map((tagId) => getTag(tagId))
@@ -464,7 +732,7 @@ export function updateContent(
     .prepare(
       `
       UPDATE contents
-      SET type = ?, title = ?, category = ?, category_id = ?, summary = ?, body = ?, tags_json = ?, visibility = ?, cover_asset_id = ?, updated_at = ?
+      SET type = ?, title = ?, category = ?, category_id = ?, summary = ?, body = ?, tags_json = ?, visibility = ?, published_at = ?, cover_asset_id = ?, updated_at = ?
       WHERE id = ?
     `,
     )
@@ -477,6 +745,7 @@ export function updateContent(
       input.body.trim(),
       JSON.stringify(tagItems.map((tag) => tag.name)),
       input.visibility,
+      publishedAt,
       input.coverAssetId?.trim() || null,
       now,
       id,
@@ -538,11 +807,13 @@ function createContentWithDb(
     body: string;
     tags: string[];
     visibility: Visibility;
+    publishedAt?: string;
     assetIds?: string[];
     coverAssetId?: string;
   },
 ) {
   const now = new Date().toISOString();
+  const publishedAt = normalizeDateInput(input.publishedAt) ?? now;
   const category = getCategoryWithDb(database, input.categoryId) ?? ensureCategory(database, defaultCategoryName);
   const tagItems = input.tags.map((tagName) => ensureTag(database, tagName));
   const summary = input.summary?.trim() || input.body.trim().slice(0, 120);
@@ -551,8 +822,8 @@ function createContentWithDb(
     .prepare(
       `
       INSERT INTO contents (
-        id, type, title, slug, category, category_id, summary, body, tags_json, visibility, cover_asset_id, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, type, title, slug, category, category_id, summary, body, tags_json, visibility, published_at, cover_asset_id, created_at, updated_at, view_count
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     )
     .run(
@@ -566,9 +837,11 @@ function createContentWithDb(
       input.body.trim(),
       JSON.stringify(tagItems.map((tag) => tag.name)),
       input.visibility,
+      publishedAt,
       input.coverAssetId?.trim() || null,
       now,
       now,
+      0,
     );
 
   const linkTag = database.prepare("INSERT OR IGNORE INTO content_tags (content_id, tag_id) VALUES (?, ?)");
@@ -795,6 +1068,7 @@ export function getAsset(id: string) {
         size_bytes AS sizeBytes,
         storage_path AS storagePath,
         alt,
+        usage_scope AS usageScope,
         created_at AS createdAt
       FROM assets
       WHERE id = ?
@@ -824,12 +1098,63 @@ export function listAssets() {
         size_bytes AS sizeBytes,
         storage_path AS storagePath,
         alt,
+        usage_scope AS usageScope,
         created_at AS createdAt
       FROM assets
       ORDER BY created_at DESC
     `,
     )
     .all() as AssetRow[];
+
+  return rows.map(mapAssetRow);
+}
+
+export function listComposerAssets(contentId?: string) {
+  const database = getDb();
+
+  if (!contentId) {
+    const rows = database
+      .prepare(
+        `
+        SELECT
+          id,
+          file_name AS fileName,
+          mime_type AS mimeType,
+          size_bytes AS sizeBytes,
+          storage_path AS storagePath,
+          alt,
+          usage_scope AS usageScope,
+          created_at AS createdAt
+        FROM assets
+        WHERE usage_scope = 'reusable'
+        ORDER BY created_at DESC
+      `,
+      )
+      .all() as AssetRow[];
+
+    return rows.map(mapAssetRow);
+  }
+
+  const rows = database
+    .prepare(
+      `
+      SELECT DISTINCT
+        a.id,
+        a.file_name AS fileName,
+        a.mime_type AS mimeType,
+        a.size_bytes AS sizeBytes,
+        a.storage_path AS storagePath,
+        a.alt,
+        a.usage_scope AS usageScope,
+        a.created_at AS createdAt
+      FROM assets a
+      LEFT JOIN content_assets ca ON ca.asset_id = a.id AND ca.content_id = ?
+      LEFT JOIN contents c ON c.cover_asset_id = a.id AND c.id = ?
+      WHERE a.usage_scope = 'reusable' OR ca.content_id IS NOT NULL OR c.id IS NOT NULL
+      ORDER BY a.created_at DESC
+    `,
+    )
+    .all(contentId, contentId) as AssetRow[];
 
   return rows.map(mapAssetRow);
 }
@@ -845,6 +1170,7 @@ export function getAssetsForContent(contentId: string) {
         a.size_bytes AS sizeBytes,
         a.storage_path AS storagePath,
         a.alt,
+        a.usage_scope AS usageScope,
         a.created_at AS createdAt
       FROM assets a
       JOIN content_assets ca ON ca.asset_id = a.id
@@ -863,6 +1189,7 @@ export function createAsset(input: {
   sizeBytes: number;
   storagePath: string;
   alt?: string;
+  usageScope?: AssetUsageScope;
 }) {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
@@ -871,13 +1198,46 @@ export function createAsset(input: {
     .prepare(
       `
       INSERT INTO assets (
-        id, file_name, mime_type, size_bytes, storage_path, alt, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        id, file_name, mime_type, size_bytes, storage_path, alt, usage_scope, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `,
     )
-    .run(id, input.fileName, input.mimeType, input.sizeBytes, input.storagePath, input.alt ?? "", now);
+    .run(
+      id,
+      input.fileName,
+      input.mimeType,
+      input.sizeBytes,
+      input.storagePath,
+      input.alt ?? "",
+      input.usageScope ?? "inline",
+      now,
+    );
 
   return getAsset(id);
+}
+
+export function updateAssetUsageScope(id: string, usageScope: AssetUsageScope) {
+  const database = getDb();
+  const asset = getAsset(id);
+
+  if (!asset) {
+    return null;
+  }
+
+  database.prepare("UPDATE assets SET usage_scope = ? WHERE id = ?").run(usageScope, id);
+  return getAsset(id);
+}
+
+export function incrementContentViewCount(id: string) {
+  const database = getDb();
+  const content = getContentById(id);
+
+  if (!content) {
+    return null;
+  }
+
+  database.prepare("UPDATE contents SET view_count = view_count + 1 WHERE id = ?").run(id);
+  return getContentById(id);
 }
 
 export function deleteAsset(id: string) {
@@ -918,6 +1278,128 @@ export function searchPublicContent(query: string) {
   );
 
   return matched.length > 0 ? matched : publicItems.slice(0, 3);
+}
+
+export function recordSiteVisit(input: {
+  path: string;
+  ipAddress?: string;
+  userAgent?: string;
+  visitorId?: string;
+  eventType?: "site" | "page";
+  geo?: VisitGeo;
+}) {
+  const safePath = input.path.trim().slice(0, 300) || "/";
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  const eventType = input.eventType ?? "site";
+
+  getDb()
+    .prepare(
+      `
+      INSERT INTO site_visits (
+        id, path, ip_address, visitor_id, event_type, user_agent, country, region, city, latitude, longitude, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    )
+    .run(
+      id,
+      safePath,
+      input.ipAddress?.trim().slice(0, 80) ?? "",
+      input.visitorId?.trim().slice(0, 80) ?? "",
+      eventType,
+      input.userAgent?.trim().slice(0, 500) ?? "",
+      input.geo?.country?.trim().slice(0, 80) ?? "",
+      input.geo?.region?.trim().slice(0, 80) ?? "",
+      input.geo?.city?.trim().slice(0, 80) ?? "",
+      input.geo?.latitude ?? null,
+      input.geo?.longitude ?? null,
+      now,
+    );
+
+  return { id, createdAt: now };
+}
+
+export function listVisitorLocations() {
+  const rows = getDb()
+    .prepare(
+      `
+      SELECT
+        country,
+        region,
+        city,
+        latitude,
+        longitude,
+        COUNT(*) AS count,
+        MAX(created_at) AS lastSeenAt
+      FROM site_visits
+      WHERE event_type = 'site' AND latitude IS NOT NULL AND longitude IS NOT NULL
+      GROUP BY country, region, city, latitude, longitude
+      ORDER BY count DESC, lastSeenAt DESC
+      LIMIT 24
+    `,
+    )
+    .all() as VisitorLocation[];
+
+  return rows.map((row) => ({
+    country: row.country,
+    region: row.region,
+    city: row.city,
+    latitude: Number(row.latitude),
+    longitude: Number(row.longitude),
+    count: row.count,
+    lastSeenAt: row.lastSeenAt,
+  }));
+}
+
+export function createOnlineStatus(message: string) {
+  const trimmed = message.trim().slice(0, 120);
+
+  if (!trimmed) {
+    return null;
+  }
+
+  const id = crypto.randomUUID();
+  const createdAt = new Date();
+  const expiresAt = new Date(createdAt.getTime() + 24 * 60 * 60 * 1000);
+
+  getDb()
+    .prepare(
+      `
+      INSERT INTO online_statuses (id, message, created_at, expires_at)
+      VALUES (?, ?, ?, ?)
+    `,
+    )
+    .run(id, trimmed, createdAt.toISOString(), expiresAt.toISOString());
+
+  return getOnlineStatus();
+}
+
+export function getOnlineStatus(): OnlineStatus | null {
+  const database = getDb();
+  const now = new Date().toISOString();
+
+  database.prepare("DELETE FROM online_statuses WHERE expires_at <= ?").run(now);
+
+  const row = database
+    .prepare(
+      `
+      SELECT id, message, created_at AS createdAt, expires_at AS expiresAt
+      FROM online_statuses
+      WHERE expires_at > ?
+      ORDER BY created_at DESC
+      LIMIT 1
+    `,
+    )
+    .get(now) as OnlineStatus | undefined;
+
+  return row
+    ? {
+        id: row.id,
+        message: row.message,
+        createdAt: row.createdAt,
+        expiresAt: row.expiresAt,
+      }
+    : null;
 }
 
 function ensureCategory(database: DatabaseSync, name: string, description = "") {
@@ -993,6 +1475,22 @@ function createTaxonomySlug(name: string, id: string) {
     .replace(/^-+|-+$/g, "");
 
   return asciiSlug || `taxonomy-${id.slice(0, 8)}`;
+}
+
+function normalizeDateInput(value?: string) {
+  const trimmed = value?.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  const date = new Date(trimmed);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date.toISOString();
 }
 
 function normalizeTaxonomyName(name: string) {

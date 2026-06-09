@@ -31,6 +31,7 @@ export async function PATCH(request: Request, { params }: EntryRouteProps) {
     body?: string;
     tagIds?: string[];
     visibility?: Visibility;
+    publishedAt?: string;
     assetIds?: string[];
     coverAssetId?: string;
   };
@@ -76,6 +77,7 @@ export async function PATCH(request: Request, { params }: EntryRouteProps) {
     body,
     tagIds: payload.tagIds ?? [],
     visibility,
+    publishedAt: payload.publishedAt,
     assetIds: payload.assetIds ?? [],
     coverAssetId: payload.coverAssetId,
   });

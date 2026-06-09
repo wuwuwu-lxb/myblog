@@ -36,20 +36,20 @@ function getDiaryItems() {
   const contents = listContents({ visibility: "public" });
   return contents
     .filter((item) => item.type === "entry" || item.category === "日记")
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
 }
 
 function groupByDay(items: ContentItem[]) {
   const groups = new Map<string, ContentItem[]>();
 
   for (const item of items) {
-    const day = toDay(item.updatedAt);
+    const day = toDay(item.publishedAt);
     groups.set(day, [...(groups.get(day) ?? []), item]);
   }
 
   return Array.from(groups.entries()).map(([day, dayItems]) => ({
     day,
-    items: dayItems,
+    items: dayItems.sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)),
   }));
 }
 
@@ -65,7 +65,6 @@ export default async function DiaryPage({ searchParams }: DiaryPageProps) {
   const selectedItems = selectedDay
     ? groups.find((group) => group.day === selectedDay)?.items ?? []
     : [];
-  const mainItem = selectedItems[0] ?? null;
 
   return (
     <div className="public-shell">
@@ -99,42 +98,44 @@ export default async function DiaryPage({ searchParams }: DiaryPageProps) {
         </aside>
 
         <article className="diary-detail panel">
-          {mainItem ? (
+          {selectedDay && selectedItems.length > 0 ? (
             <>
               <div className="module-meta">
                 <span>
-                  <Clock3 aria-hidden="true" size={13} />
-                  {mainItem.updatedAt.slice(0, 16).replace("T", " ")}
+                  <CalendarDays aria-hidden="true" size={13} />
+                  {formatDateLabel(selectedDay)}
                 </span>
-                <span>{mainItem.category}</span>
-                <span>{mainItem.visibility}</span>
+                <span>{selectedItems.length} 条记录</span>
               </div>
-              <h1>{mainItem.title}</h1>
-              <p className="lead">{mainItem.summary || mainItem.body.slice(0, 96)}</p>
-              <div className="diary-body">
-                <MarkdownPreview content={mainItem.body} />
+              <h1>{selectedDay}</h1>
+              <div className="diary-timeline">
+                {selectedItems.map((item) => (
+                  <section className="diary-entry" key={item.id}>
+                    <div className="module-meta">
+                      <span>
+                        <Clock3 aria-hidden="true" size={13} />
+                        发布 {item.publishedAt.slice(11, 16)}
+                      </span>
+                      <span>修改 {item.updatedAt.slice(0, 10)}</span>
+                      <span>{item.category}</span>
+                    </div>
+                    <h2>{item.title}</h2>
+                    {item.summary ? <p className="lead">{item.summary}</p> : null}
+                    <div className="diary-body">
+                      <MarkdownPreview content={item.body} />
+                    </div>
+                    {item.tags.length > 0 ? (
+                      <div className="tag-row">
+                        {item.tags.map((tag) => (
+                          <span className="tag" key={tag}>
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </section>
+                ))}
               </div>
-              {mainItem.tags.length > 0 ? (
-                <div className="tag-row">
-                  {mainItem.tags.map((tag) => (
-                    <span className="tag" key={tag}>
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-              {selectedItems.length > 1 ? (
-                <div className="diary-same-day">
-                  <h2>同日记录</h2>
-                  {selectedItems.slice(1).map((item) => (
-                    <Link className="source-line" href={`/blog/${item.slug}`} key={item.id}>
-                      <span>{item.updatedAt.slice(11, 16)}</span>
-                      <strong>{item.title}</strong>
-                      <p>{item.summary || item.body.slice(0, 72)}</p>
-                    </Link>
-                  ))}
-                </div>
-              ) : null}
             </>
           ) : (
             <p className="muted">还没有公开日记。</p>

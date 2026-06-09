@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ImagePlus, Save, Star, TextCursorInput } from "lucide-react";
 import { MarkdownPreview } from "@/app/MarkdownPreview";
-import type { ContentItem, ContentType, MediaAsset, TaxonomyItem, Visibility } from "@/lib/db";
+import type { ContentItem, ContentType, MediaAsset, TaxonomyItem, Visibility } from "@/app/client-types";
 
 type DashboardComposerProps = {
   initialContent: ContentItem | null;
@@ -18,16 +18,35 @@ export function DashboardComposer({ initialContent, initialAssets, categories, t
   const [title, setTitle] = useState(initialContent?.title ?? "");
   const [summary, setSummary] = useState(initialContent?.summary ?? "");
   const [body, setBody] = useState(initialContent?.body ?? "");
+  const [publishedAt, setPublishedAt] = useState(toDateTimeLocal(initialContent?.publishedAt ?? new Date().toISOString()));
   const [categoryId, setCategoryId] = useState(initialContent?.categoryId ?? categories[0]?.id ?? "");
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>(initialContent?.tagIds ?? []);
   const [type, setType] = useState<ContentType>(initialContent?.type ?? "entry");
   const [visibility, setVisibility] = useState<Visibility>(initialContent?.visibility ?? "private");
   const [assetIds, setAssetIds] = useState<string[]>(initialContent?.assets.map((asset) => asset.id) ?? []);
+  const [sessionAssetIds, setSessionAssetIds] = useState<string[]>([]);
   const [coverAssetId, setCoverAssetId] = useState(initialContent?.coverAssetId ?? "");
+  const [selectedMediaAssetId, setSelectedMediaAssetId] = useState(
+    initialContent?.coverAssetId || initialContent?.assets[0]?.id || "",
+  );
   const [status, setStatus] = useState(initialContent ? `正在编辑：${initialContent.title}` : "准备记录。");
   const [lastSaved, setLastSaved] = useState<ContentItem | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+
+  const visibleAssets = useMemo(
+    () =>
+      assets.filter(
+        (asset) =>
+          asset.usageScope === "reusable" ||
+          assetIds.includes(asset.id) ||
+          sessionAssetIds.includes(asset.id) ||
+          coverAssetId === asset.id,
+      ),
+    [assets, assetIds, coverAssetId, sessionAssetIds],
+  );
+  const selectedMediaAsset =
+    visibleAssets.find((asset) => asset.id === selectedMediaAssetId) ?? visibleAssets[0] ?? null;
 
   function toggleAsset(assetId: string) {
     setAssetIds((current) =>
@@ -75,7 +94,9 @@ export function DashboardComposer({ initialContent, initialAssets, categories, t
 
     setAssets((current) => [result.asset, ...current]);
     setAssetIds((current) => [result.asset.id, ...current]);
-    setStatus("图片已上传并选中。");
+    setSessionAssetIds((current) => [result.asset.id, ...current]);
+    setSelectedMediaAssetId(result.asset.id);
+    setStatus("图片已上传并选中，默认作为一次性图片。");
     event.target.value = "";
   }
 
@@ -97,6 +118,7 @@ export function DashboardComposer({ initialContent, initialAssets, categories, t
         body,
         tagIds: selectedTagIds,
         visibility,
+        publishedAt,
         assetIds,
         coverAssetId,
       }),
@@ -110,14 +132,20 @@ export function DashboardComposer({ initialContent, initialAssets, categories, t
       return;
     }
 
-    setTitle("");
-    setSummary("");
-    setBody("");
-    setSelectedTagIds([]);
-    setAssetIds([]);
-    setCoverAssetId("");
     setLastSaved(result.content);
     setStatus(initialContent ? "已更新内容。" : "已保存到 SQLite。");
+
+    if (!initialContent) {
+      setTitle("");
+      setSummary("");
+      setBody("");
+      setPublishedAt(toDateTimeLocal(new Date().toISOString()));
+      setSelectedTagIds([]);
+      setAssetIds([]);
+      setSessionAssetIds([]);
+      setCoverAssetId("");
+      setSelectedMediaAssetId("");
+    }
   }
 
   const lastSavedHref =
@@ -128,9 +156,86 @@ export function DashboardComposer({ initialContent, initialAssets, categories, t
         : null;
 
   return (
-    <section className="section dashboard-grid">
-      <form className="panel" onSubmit={handleSubmit}>
-        <h2>{initialContent ? "编辑内容" : "工作区"}</h2>
+    <section className="section composer-shell">
+      <aside className="panel media-dock">
+        <div className="composer-head">
+          <div>
+            <span className="eyebrow compact">MEDIA</span>
+            <h2>媒体</h2>
+          </div>
+          <label className="icon-action file-icon-action" aria-label="上传图片">
+            <ImagePlus aria-hidden="true" size={17} />
+            <input accept="image/*" type="file" onChange={handleUpload} />
+          </label>
+        </div>
+        <div className="media-dock-actions">
+          <button
+            className="asset-action asset-action-primary"
+            type="button"
+            disabled={!selectedMediaAsset}
+            onClick={() => selectedMediaAsset && insertImage(selectedMediaAsset)}
+          >
+            <TextCursorInput aria-hidden="true" size={13} />
+            插入正文
+          </button>
+          <button
+            className="asset-action"
+            type="button"
+            disabled={!selectedMediaAsset}
+            aria-pressed={Boolean(selectedMediaAsset && coverAssetId === selectedMediaAsset.id)}
+            onClick={() => selectedMediaAsset && toggleCover(selectedMediaAsset)}
+          >
+            <Star aria-hidden="true" size={13} />
+            {selectedMediaAsset && coverAssetId === selectedMediaAsset.id ? "取消封面" : "设封面"}
+          </button>
+          <button
+            className="asset-action"
+            type="button"
+            disabled={!selectedMediaAsset}
+            onClick={() => selectedMediaAsset && toggleAsset(selectedMediaAsset.id)}
+          >
+            {selectedMediaAsset && assetIds.includes(selectedMediaAsset.id) ? "取消关联" : "关联本文"}
+          </button>
+        </div>
+        <p className="muted small-copy">
+          {isUploading ? "上传中。" : selectedMediaAsset ? "已选择图片，可执行上方操作。" : "选择一张图片。"}
+        </p>
+
+        <div className="media-dock-list">
+          {visibleAssets.map((asset) => {
+            const selected = selectedMediaAsset?.id === asset.id;
+            const linked = assetIds.includes(asset.id);
+            const isCover = coverAssetId === asset.id;
+
+            return (
+              <figure className={`${selected ? "selected" : ""} ${linked ? "linked" : ""} ${isCover ? "cover" : ""}`} key={asset.id}>
+                <button
+                  className="media-image-button"
+                  type="button"
+                  title={asset.fileName}
+                  onClick={() => setSelectedMediaAssetId(asset.id)}
+                >
+                  <img src={`/assets/${asset.id}`} alt={asset.alt} />
+                </button>
+              </figure>
+            );
+          })}
+          {visibleAssets.length === 0 ? <p className="muted">还没有可用图片。</p> : null}
+        </div>
+      </aside>
+
+      <form className="panel composer-editor" onSubmit={handleSubmit}>
+        <div className="composer-head">
+          <div>
+            <span className="eyebrow compact">WRITE</span>
+            <h2>{initialContent ? "编辑内容" : "工作区"}</h2>
+          </div>
+          <button className="button primary" type="submit" disabled={isSaving || !categoryId}>
+            <Save aria-hidden="true" size={17} />
+            {isSaving ? "保存中" : initialContent ? "更新" : "保存"}
+          </button>
+        </div>
+
         <div className="form-grid">
           <label>
             <span>标题</span>
@@ -139,6 +244,16 @@ export function DashboardComposer({ initialContent, initialAssets, categories, t
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               placeholder="写一个标题"
+              required
+            />
+          </label>
+          <label>
+            <span>发布日期</span>
+            <input
+              className="input"
+              type="datetime-local"
+              value={publishedAt}
+              onChange={(event) => setPublishedAt(event.target.value)}
               required
             />
           </label>
@@ -208,28 +323,17 @@ export function DashboardComposer({ initialContent, initialAssets, categories, t
           </div>
         </div>
 
-        <label className="block-label">
+        <label className="block-label editor-body-field">
           <span>正文</span>
           <textarea
-            className="textarea"
+            className="textarea composer-textarea"
             value={body}
             onChange={(event) => setBody(event.target.value)}
-            placeholder="支持 Markdown，也可以从右侧媒体库插入图片。"
+            placeholder="支持 Markdown，从左侧媒体栏插入图片。"
             required
           />
         </label>
 
-        <div className="actions">
-          <button className="button primary" type="submit" disabled={isSaving || !categoryId}>
-            <Save aria-hidden="true" size={17} />
-            {isSaving ? "保存中" : initialContent ? "更新内容" : "保存记录"}
-          </button>
-          <label className="button file-button">
-            <ImagePlus aria-hidden="true" size={17} />
-            {isUploading ? "上传中" : "上传图片"}
-            <input accept="image/*" type="file" onChange={handleUpload} />
-          </label>
-        </div>
         <div className="save-status">
           <p className="muted">{status}</p>
           {lastSavedHref ? (
@@ -242,60 +346,39 @@ export function DashboardComposer({ initialContent, initialAssets, categories, t
         </div>
       </form>
 
-      <aside className="side-stack">
-        <section className="panel live-preview">
-          <div className="board-header">
-            <span>PREVIEW</span>
-            <strong>{type}</strong>
+      <aside className="panel live-preview composer-preview">
+        <div className="board-header">
+          <span>PREVIEW</span>
+          <strong>{type}</strong>
+        </div>
+        <h2>{title || "实时预览"}</h2>
+        <div className="module-meta">
+          <span>发布 {publishedAt ? publishedAt.slice(0, 10) : "-"}</span>
+          <span>修改 {initialContent?.updatedAt.slice(0, 10) ?? "保存后生成"}</span>
+          <span>浏览 {initialContent?.viewCount ?? 0}</span>
+        </div>
+        {coverAssetId ? (
+          <div className="preview-cover-wrap">
+            <img className="preview-cover" src={`/assets/${coverAssetId}`} alt="文章封面" />
+            <button className="asset-action danger" type="button" onClick={() => setCoverAssetId("")}>
+              移除封面
+            </button>
           </div>
-          <h2>{title || "实时预览"}</h2>
-          {coverAssetId ? (
-            <div className="preview-cover-wrap">
-              <img className="preview-cover" src={`/assets/${coverAssetId}`} alt="文章封面" />
-              <button className="asset-action danger" type="button" onClick={() => setCoverAssetId("")}>
-                移除封面
-              </button>
-            </div>
-          ) : null}
-          {summary ? <p className="lead">{summary}</p> : null}
-          <MarkdownPreview content={body} />
-        </section>
-
-        <section className="panel">
-          <h2>媒体资产</h2>
-          <div className="asset-strip media-library">
-            {assets.map((asset) => {
-              const selected = assetIds.includes(asset.id);
-
-              return (
-                <figure className={selected ? "selected" : ""} key={asset.id}>
-                  <img src={`/assets/${asset.id}`} alt={asset.alt} />
-                  <figcaption>
-                    <span>{asset.fileName}</span>
-                    <button className="asset-action" type="button" onClick={() => toggleAsset(asset.id)}>
-                      {selected ? "已选" : "选择"}
-                    </button>
-                    <button className="asset-action" type="button" onClick={() => insertImage(asset)}>
-                      <TextCursorInput aria-hidden="true" size={13} />
-                      插入
-                    </button>
-                    <button
-                      className="asset-action"
-                      type="button"
-                      aria-pressed={coverAssetId === asset.id}
-                      onClick={() => toggleCover(asset)}
-                    >
-                      <Star aria-hidden="true" size={13} />
-                      {coverAssetId === asset.id ? "取消封面" : "设封面"}
-                    </button>
-                  </figcaption>
-                </figure>
-              );
-            })}
-            {assets.length === 0 ? <p className="muted">还没有上传图片。</p> : null}
-          </div>
-        </section>
+        ) : null}
+        {summary ? <p className="lead">{summary}</p> : null}
+        <MarkdownPreview content={body} />
       </aside>
     </section>
   );
+}
+
+function toDateTimeLocal(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
 }

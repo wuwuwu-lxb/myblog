@@ -3,6 +3,7 @@ import Link from "next/link";
 import { LogIn, LogOut } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { ThemeControls } from "./ThemeControls";
+import { VisitTracker } from "./VisitTracker";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -21,11 +22,12 @@ export default async function RootLayout({
     <html lang="zh-CN">
       <body>
         <header className="site-header">
-          <Link className="brand" href="/">
+          <div className="brand">
             <span className="brand-avatar" aria-hidden="true" />
             <span>wuwuwu</span>
-          </Link>
+          </div>
           <nav className="top-nav" aria-label="主导航">
+            <Link href="/">主页</Link>
             <Link href="/diary">日记</Link>
             <Link href="/self">跟我对话</Link>
             <Link href="/blog">博客</Link>
@@ -46,6 +48,7 @@ export default async function RootLayout({
             )}
           </nav>
         </header>
+        <VisitTracker />
         <main>{children}</main>
       </body>
     </html>

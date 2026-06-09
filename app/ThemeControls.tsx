@@ -1,9 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { flushSync } from "react-dom";
 import { Moon, Sun } from "lucide-react";
 
 type ColorMode = "light" | "dark";
+type ViewTransitionDocument = Document & {
+  startViewTransition?: (callback: () => void) => void;
+};
 
 export function ThemeControls() {
   const [hue, setHue] = useState(166);
@@ -35,6 +39,35 @@ export function ThemeControls() {
     window.localStorage.setItem("llm-selfwiki-theme-mode", mode);
   }, [mode]);
 
+  function changeMode(nextMode: ColorMode, event: React.MouseEvent<HTMLButtonElement>) {
+    if (nextMode === mode) {
+      return;
+    }
+
+    const buttonRect = event.currentTarget.getBoundingClientRect();
+    const x = buttonRect.left + buttonRect.width / 2;
+    const y = buttonRect.top + buttonRect.height / 2;
+    const endRadius = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y));
+    const root = document.documentElement;
+
+    root.style.setProperty("--theme-reveal-x", `${x}px`);
+    root.style.setProperty("--theme-reveal-y", `${y}px`);
+    root.style.setProperty("--theme-reveal-radius", `${endRadius}px`);
+
+    const startViewTransition = (document as ViewTransitionDocument).startViewTransition;
+
+    if (!startViewTransition) {
+      setMode(nextMode);
+      return;
+    }
+
+    startViewTransition.call(document, () => {
+      flushSync(() => {
+        setMode(nextMode);
+      });
+    });
+  }
+
   return (
     <div className="nav-theme-controls" aria-label="全局主题">
       <div className="mode-toggle" aria-label="浅色和深色切换">
@@ -42,7 +75,7 @@ export function ThemeControls() {
           aria-label="切换到浅色模式"
           aria-pressed={mode === "light"}
           className="mode-button"
-          onClick={() => setMode("light")}
+          onClick={(event) => changeMode("light", event)}
           type="button"
         >
           <Sun aria-hidden="true" size={15} />
@@ -51,7 +84,7 @@ export function ThemeControls() {
           aria-label="切换到深色模式"
           aria-pressed={mode === "dark"}
           className="mode-button"
-          onClick={() => setMode("dark")}
+          onClick={(event) => changeMode("dark", event)}
           type="button"
         >
           <Moon aria-hidden="true" size={15} />

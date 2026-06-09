@@ -50,12 +50,18 @@ export function BlogIndex({ title, description, posts, categories, tags }: BlogI
 
         <div className="article-list">
           {posts.map((post) => (
-            <Link className={`article-card ${post.coverAsset ? "with-cover" : ""}`} href={`/blog/${post.slug}`} key={post.id}>
+            <Link
+              className={`article-card ${post.coverAsset ? "with-cover" : ""}`}
+              href={`/blog/${post.slug}`}
+              prefetch={false}
+              key={post.id}
+            >
               <span className="article-card-main">
                 <div className="module-meta">
-                  <span>{post.updatedAt.slice(0, 10)}</span>
+                  <span>发布 {post.publishedAt.slice(0, 10)}</span>
+                  <span>改 {post.updatedAt.slice(0, 10)}</span>
+                  <span>浏览 {post.viewCount}</span>
                   <span>{post.category}</span>
-                  <span>{post.visibility}</span>
                 </div>
                 <h2>{post.title}</h2>
                 <p>{post.summary}</p>

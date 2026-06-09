@@ -1,8 +1,9 @@
 import { Database, FileText, ImagePlus } from "lucide-react";
 import { requireUser } from "@/lib/auth";
-import { listAssets, listCategories, listContents, listTags } from "@/lib/db";
+import { getContentById, getDashboardStats, getOnlineStatus, listCategories, listComposerAssets, listTags } from "@/lib/db";
 import { AdminNav } from "./AdminNav";
 import { DashboardComposer } from "./DashboardComposer";
+import { OnlineStatusPublisher } from "./OnlineStatusPublisher";
 
 export const dynamic = "force-dynamic";
 
@@ -16,25 +17,27 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   await requireUser();
 
   const { edit } = await searchParams;
-  const contents = listContents();
-  const assets = listAssets();
+  const editingContent = edit ? getContentById(edit) : null;
+  const assets = listComposerAssets(editingContent?.id);
   const categories = listCategories();
   const tags = listTags();
+  const dashboardStats = getDashboardStats();
+  const onlineStatus = getOnlineStatus();
 
   const stats = [
     {
       label: "内容记录",
-      value: contents.length,
+      value: dashboardStats.contentCount,
       icon: FileText,
     },
     {
       label: "媒体资产",
-      value: assets.length,
+      value: dashboardStats.assetCount,
       icon: ImagePlus,
     },
     {
       label: "公开来源",
-      value: contents.filter((item) => item.visibility === "public").length,
+      value: dashboardStats.publicSourceCount,
       icon: Database,
     },
   ];
@@ -61,9 +64,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         })}
       </section>
 
+      <OnlineStatusPublisher initialStatus={onlineStatus} />
+
       <DashboardComposer
         initialAssets={assets}
-        initialContent={contents.find((item) => item.id === edit) ?? null}
+        initialContent={editingContent}
         categories={categories}
         tags={tags}
       />

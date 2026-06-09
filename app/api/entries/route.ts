@@ -28,6 +28,7 @@ export async function POST(request: Request) {
     body?: string;
     tagIds?: string[];
     visibility?: Visibility;
+    publishedAt?: string;
     assetIds?: string[];
     coverAssetId?: string;
   };
@@ -62,6 +63,7 @@ export async function POST(request: Request) {
     body,
     tagIds: payload.tagIds ?? [],
     visibility,
+    publishedAt: payload.publishedAt,
     assetIds: payload.assetIds ?? [],
     coverAssetId: payload.coverAssetId,
   });

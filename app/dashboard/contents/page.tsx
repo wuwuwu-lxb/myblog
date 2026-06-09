@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/auth";
-import { listContents } from "@/lib/db";
+import { listContentSummaries } from "@/lib/db";
 import { AdminNav } from "../AdminNav";
 import { ContentManager } from "./ContentManager";
 
@@ -13,7 +13,7 @@ export default async function ContentsPage() {
       <p className="eyebrow">后台</p>
       <h1>内容管理</h1>
       <AdminNav />
-      <ContentManager initialContents={listContents()} />
+      <ContentManager initialContents={listContentSummaries()} />
     </div>
   );
 }

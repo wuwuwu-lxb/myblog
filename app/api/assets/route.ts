@@ -43,6 +43,7 @@ export async function POST(request: Request) {
     sizeBytes: file.size,
     storagePath,
     alt: file.name,
+    usageScope: "inline",
   });
 
   return NextResponse.json({ asset }, { status: 201 });

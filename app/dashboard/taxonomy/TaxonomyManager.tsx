@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
-import type { TaxonomyItem } from "@/lib/db";
+import type { TaxonomyItem } from "@/app/client-types";
 
 type TaxonomyManagerProps = {
   initialCategories: TaxonomyItem[];

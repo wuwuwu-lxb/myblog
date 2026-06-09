@@ -2,7 +2,7 @@
 
 import { startTransition, useDeferredValue, useMemo, useState } from "react";
 import { CornerDownLeft, FileText, Send } from "lucide-react";
-import type { ContentItem } from "@/lib/db";
+import type { ContentItem } from "@/app/client-types";
 
 type ChatMessage = {
   role: "user" | "assistant";

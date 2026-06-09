@@ -2,10 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
-import type { ContentItem, ContentType, Visibility } from "@/lib/db";
+import type { ContentListItem, ContentType, Visibility } from "@/app/client-types";
 
 type ContentManagerProps = {
-  initialContents: ContentItem[];
+  initialContents: ContentListItem[];
 };
 
 export function ContentManager({ initialContents }: ContentManagerProps) {
@@ -24,7 +24,7 @@ export function ContentManager({ initialContents }: ContentManagerProps) {
     [contents, contentFilter, visibilityFilter],
   );
 
-  async function changeVisibility(item: ContentItem, nextVisibility: Visibility) {
+  async function changeVisibility(item: ContentListItem, nextVisibility: Visibility) {
     const response = await fetch(`/api/entries/${item.id}`, {
       method: "PATCH",
       headers: {
@@ -43,7 +43,7 @@ export function ContentManager({ initialContents }: ContentManagerProps) {
     setStatus(`已更新可见性：${result.content.title}`);
   }
 
-  async function deleteEntry(item: ContentItem) {
+  async function deleteEntry(item: ContentListItem) {
     if (!window.confirm(`确认删除「${item.title}」？`)) {
       return;
     }
@@ -90,7 +90,9 @@ export function ContentManager({ initialContents }: ContentManagerProps) {
               <div className="module-meta">
                 <span>{item.type}</span>
                 <span>{item.category}</span>
-                <span>{item.updatedAt.slice(0, 10)}</span>
+                <span>发布 {item.publishedAt.slice(0, 10)}</span>
+                <span>改 {item.updatedAt.slice(0, 10)}</span>
+                <span>浏览 {item.viewCount}</span>
               </div>
               <h3>{item.title}</h3>
               <p>{item.summary}</p>

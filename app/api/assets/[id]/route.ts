@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth";
-import { deleteAsset } from "@/lib/db";
+import { deleteAsset, updateAssetUsageScope, type AssetUsageScope } from "@/lib/db";
+
+const usageScopes = new Set<AssetUsageScope>(["inline", "reusable"]);
 
 type AssetApiRouteProps = {
   params: Promise<{
@@ -25,4 +27,23 @@ export async function DELETE(_request: Request, { params }: AssetApiRouteProps) 
   }
 
   return NextResponse.json({ error: "图片不存在。" }, { status: 404 });
+}
+
+export async function PATCH(request: Request, { params }: AssetApiRouteProps) {
+  if (!(await requireApiUser())) {
+    return NextResponse.json({ error: "未登录。" }, { status: 401 });
+  }
+
+  const { id } = await params;
+  const payload = (await request.json()) as {
+    usageScope?: AssetUsageScope;
+  };
+
+  if (!payload.usageScope || !usageScopes.has(payload.usageScope)) {
+    return NextResponse.json({ error: "媒体复用状态不合法。" }, { status: 400 });
+  }
+
+  const asset = updateAssetUsageScope(id, payload.usageScope);
+
+  return asset ? NextResponse.json({ asset }) : NextResponse.json({ error: "图片不存在。" }, { status: 404 });
 }
