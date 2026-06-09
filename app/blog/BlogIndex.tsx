@@ -50,21 +50,28 @@ export function BlogIndex({ title, description, posts, categories, tags }: BlogI
 
         <div className="article-list">
           {posts.map((post) => (
-            <Link className="article-card" href={`/blog/${post.slug}`} key={post.id}>
-              <div className="module-meta">
-                <span>{post.updatedAt.slice(0, 10)}</span>
-                <span>{post.category}</span>
-                <span>{post.visibility}</span>
-              </div>
-              <h2>{post.title}</h2>
-              <p>{post.summary}</p>
-              <div className="tag-row">
-                {post.tags.map((tag) => (
-                  <span className="tag" key={tag}>
-                    {tag}
-                  </span>
-                ))}
-              </div>
+            <Link className={`article-card ${post.coverAsset ? "with-cover" : ""}`} href={`/blog/${post.slug}`} key={post.id}>
+              <span className="article-card-main">
+                <div className="module-meta">
+                  <span>{post.updatedAt.slice(0, 10)}</span>
+                  <span>{post.category}</span>
+                  <span>{post.visibility}</span>
+                </div>
+                <h2>{post.title}</h2>
+                <p>{post.summary}</p>
+                <span className="tag-row">
+                  {post.tags.map((tag) => (
+                    <span className="tag" key={tag}>
+                      {tag}
+                    </span>
+                  ))}
+                </span>
+              </span>
+              {post.coverAsset ? (
+                <span className="article-card-cover">
+                  <img src={`/assets/${post.coverAsset.id}`} alt={post.coverAsset.alt || post.title} />
+                </span>
+              ) : null}
             </Link>
           ))}
           {posts.length === 0 ? <p className="muted">这个视图下还没有公开文章。</p> : null}
