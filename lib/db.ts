@@ -87,6 +87,12 @@ export type OnlineStatus = {
   expiresAt: string;
 };
 
+export type SiteSetting = {
+  key: string;
+  value: string;
+  updatedAt: string;
+};
+
 export type VisitGeo = {
   country?: string;
   region?: string;
@@ -252,6 +258,12 @@ function migrate(database: DatabaseSync) {
       message TEXT NOT NULL,
       created_at TEXT NOT NULL,
       expires_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS site_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS chat_rate_limits (
@@ -1577,6 +1589,39 @@ export function getOnlineStatus(): OnlineStatus | null {
 
 export function clearOnlineStatus() {
   getDb().prepare("DELETE FROM online_statuses").run();
+}
+
+export function getSiteSetting(key: string, fallback = ""): SiteSetting {
+  const safeKey = key.trim().slice(0, 80);
+  const row = getDb()
+    .prepare(
+      `
+      SELECT key, value, updated_at AS updatedAt
+      FROM site_settings
+      WHERE key = ?
+    `,
+    )
+    .get(safeKey) as SiteSetting | undefined;
+
+  return row ?? { key: safeKey, value: fallback, updatedAt: "" };
+}
+
+export function upsertSiteSetting(key: string, value: string) {
+  const safeKey = key.trim().slice(0, 80);
+  const safeValue = value.trim().slice(0, 160);
+  const updatedAt = new Date().toISOString();
+
+  getDb()
+    .prepare(
+      `
+      INSERT INTO site_settings (key, value, updated_at)
+      VALUES (?, ?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+    `,
+    )
+    .run(safeKey, safeValue, updatedAt);
+
+  return getSiteSetting(safeKey);
 }
 
 function ensureCategory(database: DatabaseSync, name: string, description = "") {

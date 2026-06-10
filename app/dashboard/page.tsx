@@ -1,6 +1,6 @@
 import { Database, FileText, ImagePlus } from "lucide-react";
 import { requireUser } from "@/lib/auth";
-import { getContentById, getDashboardStats, getOnlineStatus, listCategories, listComposerAssets, listTags } from "@/lib/db";
+import { getContentById, getDashboardStats, getOnlineStatus, getSiteSetting, listCategories, listComposerAssets, listTags } from "@/lib/db";
 import { AdminNav } from "./AdminNav";
 import { DashboardComposer } from "./DashboardComposer";
 import { OnlineStatusPublisher } from "./OnlineStatusPublisher";
@@ -23,6 +23,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const tags = listTags();
   const dashboardStats = getDashboardStats();
   const onlineStatus = getOnlineStatus();
+  const tagline = getSiteSetting("home.tagline", "Coding the world.").value;
 
   const stats = [
     {
@@ -61,7 +62,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         })}
       </section>
 
-      <OnlineStatusPublisher initialStatus={onlineStatus} />
+      <OnlineStatusPublisher initialStatus={onlineStatus} initialTagline={tagline} />
 
       <DashboardComposer
         initialAssets={assets}

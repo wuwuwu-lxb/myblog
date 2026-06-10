@@ -1,10 +1,11 @@
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import { BookOpenText, MapPinned, Radio } from "lucide-react";
 import { BilibiliBrandIcon, GitHubBrandIcon } from "./BrandIcons";
 import { HomeRealtime } from "./HomeRealtime";
 import { TransitionLink } from "./TransitionLink";
 import { VisitorMapClient } from "./VisitorMapClient";
-import { getOnlineStatus, getSiteStats, listContentSummaries, listVisitorLocations, type VisitorLocation } from "@/lib/db";
+import { getOnlineStatus, getSiteSetting, getSiteStats, listContentSummaries, listVisitorLocations, type VisitorLocation } from "@/lib/db";
 import { getTailscaleStatus } from "@/lib/tailscale";
 
 const githubUrl = "https://github.com/wuwuwu-lxb";
@@ -23,6 +24,7 @@ export default async function HomePage() {
   const publicContent = listContentSummaries().filter((item) => item.visibility === "public");
   const stats = getSiteStats();
   const onlineStatus = getOnlineStatus();
+  const tagline = getSiteSetting("home.tagline", "Coding the world.").value;
   const tailscaleStatus = await getTailscaleStatus();
   const visitorLocations = listVisitorLocations();
   const mapLocations =
@@ -38,15 +40,12 @@ export default async function HomePage() {
             <span className="home-avatar" aria-hidden="true" />
             <span className="home-online-dot" aria-label="在线状态">
               <span className="home-online-popover">
-                <strong>{onlineStatus ? onlineStatus.message : "当前没有公开状态"}</strong>
-                <small>
-                  {onlineStatus
-                    ? `发布于 ${onlineStatus.createdAt.slice(5, 16).replace("T", " ")}，24 小时后自动过期`
-                    : "工作台可以发布 24 小时状态"}
-                </small>
+                <span className="profile-status-line">
+                  <strong>状态</strong>
+                  <span>{onlineStatus?.message ?? "暂无状态"}</span>
+                </span>
                 <span className="device-status-summary">
-                  <span>{tailscaleStatus.onlineCount}</span>
-                  <small>在线 / {tailscaleStatus.totalCount} 台设备</small>
+                  <strong>在线 {tailscaleStatus.onlineCount} / {tailscaleStatus.totalCount}</strong>
                 </span>
                 {tailscaleStatus.devices.length > 0 ? (
                   <span className="device-status-list">
@@ -65,7 +64,9 @@ export default async function HomePage() {
             </span>
           </div>
           <h1>唔唔唔</h1>
-          <p>Coding the world.</p>
+          <p className="home-tagline" style={{ "--typing-steps": Math.max(1, tagline.length) } as CSSProperties}>
+            {tagline}
+          </p>
           <div className="home-socials">
             <a href={githubUrl} target="_blank" rel="noreferrer" aria-label="GitHub">
               <GitHubBrandIcon />

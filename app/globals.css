@@ -627,11 +627,14 @@ h3 {
 }
 
 .home-profile-card {
+  position: relative;
+  z-index: 12;
   display: grid;
   justify-items: center;
   align-content: center;
   min-height: 440px;
   text-align: center;
+  overflow: visible;
 }
 
 .home-profile-card h1 {
@@ -641,6 +644,7 @@ h3 {
 
 .home-avatar-wrap {
   position: relative;
+  z-index: 8;
 }
 
 .home-avatar {
@@ -667,9 +671,9 @@ h3 {
 
 .home-online-popover {
   position: absolute;
-  left: 50%;
-  bottom: calc(100% + 12px);
-  z-index: 5;
+  right: -18px;
+  bottom: calc(100% + 14px);
+  z-index: 80;
   display: grid;
   gap: 6px;
   width: min(300px, calc(100vw - 48px));
@@ -681,7 +685,7 @@ h3 {
   box-shadow: var(--shadow);
   opacity: 0;
   pointer-events: none;
-  transform: translate(-50%, 8px);
+  transform: translate(34%, 8px);
   transition:
     opacity 260ms ease,
     transform 260ms ease;
@@ -693,20 +697,37 @@ h3 {
   line-height: 1.45;
 }
 
+.profile-status-line {
+  display: grid;
+  gap: 4px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 8px;
+  text-align: left;
+}
+
+.profile-status-line strong {
+  color: var(--accent-strong);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.profile-status-line span {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 760;
+  line-height: 1.45;
+}
+
 .device-status-summary {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  border-top: 1px solid var(--line);
-  margin-top: 4px;
-  padding-top: 8px;
+  gap: 8px;
 }
 
-.device-status-summary > span {
+.device-status-summary strong {
   color: var(--accent-strong);
-  font-size: 22px;
-  font-weight: 880;
+  font-size: 15px;
+  font-weight: 820;
   line-height: 1;
 }
 
@@ -753,7 +774,17 @@ h3 {
 
 .home-online-dot:hover .home-online-popover {
   opacity: 1;
-  transform: translate(-50%, 0);
+  transform: translate(34%, 0);
+}
+
+.home-tagline {
+  display: inline-block;
+  width: fit-content;
+  max-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  white-space: nowrap;
+  animation: tagline-type-loop 7.2s steps(var(--typing-steps, 18), end) infinite;
 }
 
 .home-socials {
@@ -774,6 +805,8 @@ h3 {
 }
 
 .home-overview {
+  position: relative;
+  z-index: 1;
   display: grid;
   gap: 14px;
 }
@@ -816,6 +849,23 @@ h3 {
 
   50% {
     background-position: 100% 50%;
+  }
+}
+
+@keyframes tagline-type-loop {
+  0%,
+  12% {
+    max-width: 0;
+  }
+
+  38%,
+  64% {
+    max-width: 100%;
+  }
+
+  88%,
+  100% {
+    max-width: 0;
   }
 }
 
@@ -1115,6 +1165,18 @@ h3 {
 .status-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.status-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.status-editor-grid > div {
+  display: grid;
   gap: 10px;
 }
 
@@ -3140,6 +3202,7 @@ h3 {
   .inline-form,
   .form-grid,
   .status-form,
+  .status-editor-grid,
   .manager-filters,
   .content-row {
     grid-template-columns: 1fr;
