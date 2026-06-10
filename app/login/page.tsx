@@ -45,10 +45,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           </div>
         ) : (
           <div className="actions">
-            <Link className={`button primary ${isAuthConfigured() ? "" : "disabled"}`} href="/api/auth/github">
+            <a
+              className={`button primary ${isAuthConfigured() ? "" : "disabled"}`}
+              href={isAuthConfigured() ? "/api/auth/github" : undefined}
+            >
               <KeyRound aria-hidden="true" size={18} />
               使用 GitHub 登录
-            </Link>
+            </a>
           </div>
         )}
 
