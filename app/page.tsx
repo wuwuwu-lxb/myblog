@@ -5,6 +5,7 @@ import { HomeRealtime } from "./HomeRealtime";
 import { TransitionLink } from "./TransitionLink";
 import { VisitorMapClient } from "./VisitorMapClient";
 import { getOnlineStatus, getSiteStats, listContentSummaries, listVisitorLocations, type VisitorLocation } from "@/lib/db";
+import { getTailscaleStatus } from "@/lib/tailscale";
 
 const githubUrl = "https://github.com/wuwuwu-lxb";
 const bilibiliUrl = "https://space.bilibili.com/3537124569647330";
@@ -18,10 +19,11 @@ const previewVisitorLocation: VisitorLocation = {
   lastSeenAt: "2026-06-10T00:00:00.000Z",
 };
 
-export default function HomePage() {
+export default async function HomePage() {
   const publicContent = listContentSummaries().filter((item) => item.visibility === "public");
   const stats = getSiteStats();
   const onlineStatus = getOnlineStatus();
+  const tailscaleStatus = await getTailscaleStatus();
   const visitorLocations = listVisitorLocations();
   const mapLocations =
     visitorLocations.length > 0 || process.env.NODE_ENV === "production" ? visitorLocations : [previewVisitorLocation];
@@ -40,9 +42,25 @@ export default function HomePage() {
                 <small>
                   {onlineStatus
                     ? `发布于 ${onlineStatus.createdAt.slice(5, 16).replace("T", " ")}，24 小时后自动过期`
-                    : "设备状态预留：后续接入 Tailscale"}
+                    : "工作台可以发布 24 小时状态"}
                 </small>
-                <small>设备：Tailscale 接入预留</small>
+                <span className="device-status-summary">
+                  <span>{tailscaleStatus.onlineCount}</span>
+                  <small>在线 / {tailscaleStatus.totalCount} 台设备</small>
+                </span>
+                {tailscaleStatus.devices.length > 0 ? (
+                  <span className="device-status-list">
+                    {tailscaleStatus.devices.map((device) => (
+                      <span className="device-status-row" key={device.id}>
+                        <i data-online={device.online} />
+                        <span>{device.name}</span>
+                        <em>{device.os}</em>
+                      </span>
+                    ))}
+                  </span>
+                ) : (
+                  <small>{tailscaleStatus.configured ? "暂时没有可展示设备" : "Tailscale API 未配置"}</small>
+                )}
               </span>
             </span>
           </div>
