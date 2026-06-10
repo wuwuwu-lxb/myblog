@@ -1,56 +1,80 @@
 import type { VisitorLocation } from "@/lib/db";
+import { worldMapPaths } from "./worldMapPaths";
 
 type VisitorMapProps = {
   locations: VisitorLocation[];
 };
 
+const mapWidth = 740;
+const mapHeight = 444;
+const minLatitude = -58;
+const maxLatitude = 84;
+
+const longitudeLines = [-120, -60, 0, 60, 120];
+const latitudeLines = [-40, 0, 40, 80];
+
 export function VisitorMap({ locations }: VisitorMapProps) {
   return (
     <div className="visitor-map" aria-label="访客地理分布">
-      <svg viewBox="0 0 1000 500" role="img" aria-label="世界地图">
+      <svg viewBox={`0 0 ${mapWidth} ${mapHeight}`} role="img" aria-label="世界访客地图">
         <defs>
-          <radialGradient id="mapGlow" cx="50%" cy="50%" r="70%">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="0.2" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+          <linearGradient id="visitorMapOcean" x1="0%" x2="100%" y1="0%" y2="100%">
+            <stop offset="0%" stopColor="hsl(203 54% 75%)" />
+            <stop offset="54%" stopColor="hsl(207 38% 61%)" />
+            <stop offset="100%" stopColor="hsl(215 27% 36%)" />
+          </linearGradient>
+          <radialGradient id="visitorMapAtmosphere" cx="50%" cy="46%" r="78%">
+            <stop offset="0%" stopColor="white" stopOpacity="0.13" />
+            <stop offset="62%" stopColor="white" stopOpacity="0.025" />
+            <stop offset="100%" stopColor="black" stopOpacity="0.28" />
           </radialGradient>
+          <filter id="visitorMapPointShadow" x="-80%" y="-80%" width="260%" height="260%">
+            <feDropShadow dx="0" dy="7" floodColor="black" floodOpacity="0.28" stdDeviation="6" />
+          </filter>
         </defs>
-        <rect className="visitor-map-ocean" x="0" y="0" width="1000" height="500" rx="24" />
-        <g className="visitor-map-grid">
-          {[125, 250, 375, 500, 625, 750, 875].map((x) => (
-            <line key={`x-${x}`} x1={x} x2={x} y1="28" y2="472" />
+
+        <rect className="visitor-map-ocean" x="0" y="0" width={mapWidth} height={mapHeight} rx="18" />
+        <g className="visitor-map-graticule" aria-hidden="true">
+          {longitudeLines.map((longitude) => {
+            const x = project(0, longitude).x;
+            return <path d={`M${x.toFixed(1)} 22 V422`} key={`longitude-${longitude}`} />;
+          })}
+          {latitudeLines.map((latitude) => {
+            const y = project(latitude, 0).y;
+            return <path d={`M26 ${y.toFixed(1)} H714`} key={`latitude-${latitude}`} />;
+          })}
+        </g>
+
+        <g className="visitor-map-land" aria-hidden="true">
+          {worldMapPaths.map((path, index) => (
+            <path d={path} key={index} />
           ))}
-          {[100, 200, 300, 400].map((y) => (
-            <line key={`y-${y}`} x1="32" x2="968" y1={y} y2={y} />
-          ))}
         </g>
-        <g className="visitor-map-land">
-          <path d="M145 125 190 95 252 91 313 112 339 153 318 197 276 221 244 257 206 244 184 203 136 191 108 156Z" />
-          <path d="M232 270 279 259 318 292 329 344 304 402 272 452 238 428 226 376 204 336Z" />
-          <path d="M441 93 526 68 630 73 710 104 775 145 802 204 760 242 688 231 638 255 570 228 510 244 456 209 391 209 359 165Z" />
-          <path d="M486 238 540 250 584 311 579 382 543 436 499 399 472 326Z" />
-          <path d="M702 262 758 253 831 297 855 357 821 388 747 362 698 320Z" />
-          <path d="M474 55 520 34 590 43 560 69 493 76Z" />
-          <path d="M314 57 354 42 394 54 375 77 328 77Z" />
-        </g>
-        <g className="visitor-map-labels">
-          <text x="655" y="185">中国</text>
-          <text x="590" y="143">亚洲</text>
-          <text x="205" y="172">北美</text>
-          <text x="270" y="338">南美</text>
-          <text x="508" y="173">欧洲</text>
-          <text x="535" y="329">非洲</text>
-          <text x="773" y="335">大洋洲</text>
-        </g>
+
+        <rect className="visitor-map-atmosphere" x="0" y="0" width={mapWidth} height={mapHeight} rx="18" />
+
         <g className="visitor-map-points">
           {locations.map((location) => {
             const point = project(location.latitude, location.longitude);
-            const radius = Math.min(16, 5 + location.count * 2);
+            const radius = Math.min(3.5, 1.5 + Math.sqrt(location.count) * 0.725);
+            const city = location.city || location.region || location.country || "未知城市";
+            const region = [location.region, location.country].filter(Boolean).join(" / ") || "未知来源";
+            const label = `${city} · ${location.count} 个 IP`;
+            const tooltip = getTooltipPosition(point.x, point.y);
 
             return (
-              <g key={`${location.latitude}-${location.longitude}`}>
-                <circle className="visitor-map-point-halo" cx={point.x} cy={point.y} r={radius + 8} />
-                <circle className="visitor-map-point" cx={point.x} cy={point.y} r={radius} />
-                <title>{`${location.city || location.region || location.country}：${location.count} 次`}</title>
+              <g className="visitor-map-marker" key={`${city}-${location.latitude}-${location.longitude}`}>
+                <circle className="visitor-map-point-halo" cx={point.x} cy={point.y} r={radius + 5.5} />
+                <circle className="visitor-map-point-ring" cx={point.x} cy={point.y} r={radius + 2} />
+                <circle className="visitor-map-point" cx={point.x} cy={point.y} filter="url(#visitorMapPointShadow)" r={radius} />
+                <g className="visitor-map-tooltip" transform={`translate(${tooltip.x} ${tooltip.y})`}>
+                  <rect width="184" height="62" rx="10" />
+                  <text x="12" y="24">{city}</text>
+                  <text x="12" y="44">
+                    {region} · {location.count} 个 IP
+                  </text>
+                </g>
+                <title>{`${label}，最近访问 ${formatDate(location.lastSeenAt)}`}</title>
               </g>
             );
           })}
@@ -61,8 +85,22 @@ export function VisitorMap({ locations }: VisitorMapProps) {
 }
 
 function project(latitude: number, longitude: number) {
+  const clampedLatitude = Math.min(maxLatitude, Math.max(minLatitude, latitude));
+  const clampedLongitude = Math.min(180, Math.max(-180, longitude));
+
   return {
-    x: ((longitude + 180) / 360) * 1000,
-    y: ((90 - latitude) / 180) * 500,
+    x: ((clampedLongitude + 180) / 360) * mapWidth,
+    y: ((maxLatitude - clampedLatitude) / (maxLatitude - minLatitude)) * mapHeight,
   };
+}
+
+function getTooltipPosition(x: number, y: number) {
+  return {
+    x: Math.min(Math.max(x + 14, 12), mapWidth - 196),
+    y: Math.min(Math.max(y - 72, 12), mapHeight - 76),
+  };
+}
+
+function formatDate(value: string) {
+  return value.slice(0, 16).replace("T", " ");
 }

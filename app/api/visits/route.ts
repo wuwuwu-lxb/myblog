@@ -9,9 +9,9 @@ export async function POST(request: Request) {
     eventType?: "site" | "page";
   };
   const headerList = await headers();
-  const forwardedFor = headerList.get("x-forwarded-for") ?? "";
-  const realIp = headerList.get("x-real-ip") ?? "";
-  const ipAddress = forwardedFor.split(",")[0]?.trim() || realIp;
+  const ipAddress = firstHeaderValue(headerList.get("cf-connecting-ip")) ||
+    firstHeaderValue(headerList.get("x-forwarded-for")) ||
+    firstHeaderValue(headerList.get("x-real-ip"));
   const userAgent = headerList.get("user-agent") ?? "";
   const rateLimit = recordVisitRateLimit(ipAddress || "local");
 
@@ -31,6 +31,10 @@ export async function POST(request: Request) {
   });
 
   return NextResponse.json({ ok: true, recorded: true });
+}
+
+function firstHeaderValue(value: string | null) {
+  return value?.split(",")[0]?.trim() ?? "";
 }
 
 async function lookupGeo(ipAddress: string): Promise<VisitGeo | undefined> {

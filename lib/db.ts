@@ -1409,8 +1409,61 @@ export function recordSiteVisit(input: {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   const eventType = input.eventType ?? "site";
+  const safeIpAddress = input.ipAddress?.trim().slice(0, 80) ?? "";
+  const safeVisitorId = input.visitorId?.trim().slice(0, 80) ?? "";
+  const safeUserAgent = input.userAgent?.trim().slice(0, 500) ?? "";
+  const country = input.geo?.country?.trim().slice(0, 80) ?? "";
+  const region = input.geo?.region?.trim().slice(0, 80) ?? "";
+  const city = input.geo?.city?.trim().slice(0, 80) ?? "";
+  const latitude = input.geo?.latitude ?? null;
+  const longitude = input.geo?.longitude ?? null;
+  const database = getDb();
 
-  getDb()
+  if (eventType === "site" && safeIpAddress) {
+    const existing = database
+      .prepare("SELECT id FROM site_visits WHERE event_type = 'site' AND ip_address = ? LIMIT 1")
+      .get(safeIpAddress) as { id: string } | undefined;
+
+    if (existing) {
+      database
+        .prepare(
+          `
+          UPDATE site_visits
+          SET
+            path = ?,
+            visitor_id = CASE WHEN ? != '' THEN ? ELSE visitor_id END,
+            user_agent = ?,
+            country = CASE WHEN ? != '' THEN ? ELSE country END,
+            region = CASE WHEN ? != '' THEN ? ELSE region END,
+            city = CASE WHEN ? != '' THEN ? ELSE city END,
+            latitude = COALESCE(?, latitude),
+            longitude = COALESCE(?, longitude),
+            created_at = ?
+          WHERE id = ?
+        `,
+        )
+        .run(
+          safePath,
+          safeVisitorId,
+          safeVisitorId,
+          safeUserAgent,
+          country,
+          country,
+          region,
+          region,
+          city,
+          city,
+          latitude,
+          longitude,
+          now,
+          existing.id,
+        );
+
+      return { id: existing.id, createdAt: now };
+    }
+  }
+
+  database
     .prepare(
       `
       INSERT INTO site_visits (
@@ -1421,15 +1474,15 @@ export function recordSiteVisit(input: {
     .run(
       id,
       safePath,
-      input.ipAddress?.trim().slice(0, 80) ?? "",
-      input.visitorId?.trim().slice(0, 80) ?? "",
+      safeIpAddress,
+      safeVisitorId,
       eventType,
-      input.userAgent?.trim().slice(0, 500) ?? "",
-      input.geo?.country?.trim().slice(0, 80) ?? "",
-      input.geo?.region?.trim().slice(0, 80) ?? "",
-      input.geo?.city?.trim().slice(0, 80) ?? "",
-      input.geo?.latitude ?? null,
-      input.geo?.longitude ?? null,
+      safeUserAgent,
+      country,
+      region,
+      city,
+      latitude,
+      longitude,
       now,
     );
 
@@ -1441,16 +1494,19 @@ export function listVisitorLocations() {
     .prepare(
       `
       SELECT
-        country,
-        region,
-        city,
-        latitude,
-        longitude,
-        COUNT(*) AS count,
+        COALESCE(NULLIF(city, ''), NULLIF(region, ''), NULLIF(country, ''), '未知') AS city,
+        MAX(country) AS country,
+        MAX(region) AS region,
+        AVG(latitude) AS latitude,
+        AVG(longitude) AS longitude,
+        COUNT(DISTINCT ip_address) AS count,
         MAX(created_at) AS lastSeenAt
       FROM site_visits
-      WHERE event_type = 'site' AND latitude IS NOT NULL AND longitude IS NOT NULL
-      GROUP BY country, region, city, latitude, longitude
+      WHERE event_type = 'site' AND ip_address != '' AND latitude IS NOT NULL AND longitude IS NOT NULL
+      GROUP BY
+        COALESCE(NULLIF(country, ''), '未知国家'),
+        COALESCE(NULLIF(region, ''), '未知地区'),
+        COALESCE(NULLIF(city, ''), '未知城市')
       ORDER BY count DESC, lastSeenAt DESC
       LIMIT 24
     `,

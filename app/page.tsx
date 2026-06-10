@@ -3,17 +3,28 @@ import { BookOpenText, MapPinned, Radio } from "lucide-react";
 import { BilibiliBrandIcon, GitHubBrandIcon } from "./BrandIcons";
 import { HomeRealtime } from "./HomeRealtime";
 import { TransitionLink } from "./TransitionLink";
-import { VisitorMap } from "./VisitorMap";
-import { getOnlineStatus, getSiteStats, listContentSummaries, listVisitorLocations } from "@/lib/db";
+import { VisitorMapClient } from "./VisitorMapClient";
+import { getOnlineStatus, getSiteStats, listContentSummaries, listVisitorLocations, type VisitorLocation } from "@/lib/db";
 
 const githubUrl = "https://github.com/wuwuwu-lxb";
 const bilibiliUrl = "https://space.bilibili.com/3537124569647330";
+const previewVisitorLocation: VisitorLocation = {
+  country: "中国",
+  region: "浙江",
+  city: "杭州",
+  latitude: 30.2741,
+  longitude: 120.1551,
+  count: 1,
+  lastSeenAt: "2026-06-10T00:00:00.000Z",
+};
 
 export default function HomePage() {
   const publicContent = listContentSummaries().filter((item) => item.visibility === "public");
   const stats = getSiteStats();
   const onlineStatus = getOnlineStatus();
   const visitorLocations = listVisitorLocations();
+  const mapLocations =
+    visitorLocations.length > 0 || process.env.NODE_ENV === "production" ? visitorLocations : [previewVisitorLocation];
   const timeline = publicContent.slice(0, 18);
   const initialNow = new Date().toISOString();
 
@@ -35,7 +46,7 @@ export default function HomePage() {
               </span>
             </span>
           </div>
-          <h1>小唔的窝</h1>
+          <h1>唔唔唔</h1>
           <p>Coding the world.</p>
           <div className="home-socials">
             <a href={githubUrl} target="_blank" rel="noreferrer" aria-label="GitHub">
@@ -85,15 +96,7 @@ export default function HomePage() {
         </div>
         <MapPinned aria-hidden="true" size={26} />
         <h2>访客地图</h2>
-        {visitorLocations.length > 0 ? (
-          <>
-            <VisitorMap locations={visitorLocations} />
-          </>
-        ) : (
-          <div className="visitor-map-empty">
-            <strong>等待公网访客</strong>
-          </div>
-        )}
+        <VisitorMapClient locations={mapLocations} />
       </section>
 
       <section className="section home-timeline panel">

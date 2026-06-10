@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogIn, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { ThemeControls } from "./ThemeControls";
 
 type TopNavProps = {
@@ -18,8 +18,7 @@ const items = [
 
 export function TopNav({ userLogin }: TopNavProps) {
   const pathname = usePathname();
-  const workbenchHref = userLogin ? "/dashboard" : "/login";
-  const workbenchActive = pathname.startsWith("/dashboard") || pathname.startsWith("/login");
+  const workbenchActive = pathname.startsWith("/dashboard");
 
   return (
     <nav className="top-nav" aria-label="主导航">
@@ -28,23 +27,20 @@ export function TopNav({ userLogin }: TopNavProps) {
           {item.label}
         </Link>
       ))}
-      <Link aria-current={workbenchActive ? "page" : undefined} href={workbenchHref}>
-        工作台
-      </Link>
       <ThemeControls />
       {userLogin ? (
-        <form action="/api/auth/logout" method="post">
-          <button className="nav-button" type="submit">
-            <LogOut aria-hidden="true" size={16} />
-            <span>@{userLogin}</span>
-          </button>
-        </form>
-      ) : (
-        <Link href="/login">
-          <LogIn aria-hidden="true" size={16} />
-          <span>登录</span>
-        </Link>
-      )}
+        <>
+          <Link aria-current={workbenchActive ? "page" : undefined} href="/dashboard">
+            工作台
+          </Link>
+          <form action="/api/auth/logout" method="post">
+            <button className="nav-button" type="submit">
+              <LogOut aria-hidden="true" size={16} />
+              <span>@{userLogin}</span>
+            </button>
+          </form>
+        </>
+      ) : null}
     </nav>
   );
 }

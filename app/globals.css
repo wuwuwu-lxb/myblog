@@ -807,47 +807,145 @@ h3 {
   border: 1px solid var(--line);
   border-radius: calc(var(--radius) - 6px);
   overflow: hidden;
-  background: hsl(var(--theme-hue) 20% 8% / 0.28);
+  aspect-ratio: 1.667 / 1;
+  background:
+    radial-gradient(circle at 50% 38%, hsl(200 68% 80% / 0.22), transparent 50%),
+    linear-gradient(135deg, hsl(207 44% 66% / 0.98), hsl(218 28% 27% / 0.98));
+  box-shadow:
+    inset 0 0 58px hsl(220 28% 5% / 0.34),
+    0 18px 48px hsl(220 30% 4% / 0.18);
 }
 
 .visitor-map svg {
   display: block;
   width: 100%;
-  aspect-ratio: 2 / 1;
+  height: 100%;
   color: var(--accent);
 }
 
 .visitor-map-ocean {
-  fill: hsl(var(--theme-hue) 32% 12% / 0.54);
+  fill: url("#visitorMapOcean");
 }
 
-.visitor-map-grid line {
-  stroke: hsl(var(--theme-hue) 42% 72% / 0.18);
-  stroke-width: 1;
+.visitor-map-atmosphere {
+  fill: url("#visitorMapAtmosphere");
+  pointer-events: none;
+}
+
+.visitor-map-graticule path {
+  fill: none;
+  stroke: hsl(202 22% 92% / 0.13);
+  stroke-width: 0.7;
 }
 
 .visitor-map-land path {
-  fill: hsl(var(--theme-hue) 62% 44% / 0.28);
-  stroke: hsl(var(--theme-hue) 58% 78% / 0.36);
-  stroke-width: 2;
-}
-
-.visitor-map-labels {
-  fill: hsl(var(--theme-hue) 28% 78% / 0.62);
-  font-size: 18px;
-  font-weight: 780;
+  fill: hsl(0 0% 98% / 0.7);
+  stroke: hsl(205 18% 44% / 0.3);
+  stroke-width: 0.42;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
 }
 
 .visitor-map-point {
-  fill: hsl(var(--theme-hue) 84% 48% / 0.95);
-  stroke: hsl(var(--theme-hue) 84% 82% / 0.95);
+  fill: hsl(133 72% 58% / 0.96);
+  stroke: hsl(132 85% 16% / 0.95);
   stroke-width: 2;
   animation: map-pulse 2.8s ease-in-out infinite;
   transform-origin: center;
 }
 
+.visitor-map-point-ring {
+  fill: none;
+  stroke: hsl(133 72% 58% / 0.42);
+  stroke-width: 2;
+}
+
 .visitor-map-point-halo {
-  fill: hsl(var(--theme-hue) 84% 48% / 0.16);
+  fill: hsl(133 72% 58% / 0.14);
+}
+
+.visitor-map-marker {
+  cursor: default;
+}
+
+.visitor-map-tooltip {
+  opacity: 0;
+  pointer-events: none;
+  transform-box: fill-box;
+  transition:
+    opacity 180ms ease,
+    translate 180ms ease;
+  translate: 0 8px;
+}
+
+.visitor-map-marker:hover .visitor-map-tooltip {
+  opacity: 1;
+  translate: 0 0;
+}
+
+.visitor-map-tooltip rect {
+  fill: hsl(220 18% 11% / 0.82);
+  stroke: hsl(0 0% 100% / 0.14);
+  backdrop-filter: blur(12px);
+}
+
+.visitor-map-tooltip text:first-of-type {
+  fill: hsl(0 0% 98% / 0.94);
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.visitor-map-tooltip text:last-of-type {
+  fill: hsl(0 0% 88% / 0.68);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.visitor-map-loading {
+  position: relative;
+}
+
+.visitor-map-loading::before {
+  position: absolute;
+  inset: 18%;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 50% 50%, hsl(0 0% 100% / 0.2), transparent 58%),
+    linear-gradient(90deg, transparent, hsl(0 0% 100% / 0.22), transparent);
+  content: "";
+  filter: blur(10px);
+  animation: visitor-map-loading-glow 1.8s ease-in-out infinite;
+}
+
+.visitor-map-loading-lines {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+.visitor-map-loading-lines span {
+  position: absolute;
+  width: 68%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, hsl(0 0% 100% / 0.34), transparent);
+  transform: translateY(var(--line-offset, 0));
+  animation: visitor-map-loading-line 1.8s ease-in-out infinite;
+}
+
+.visitor-map-loading-lines span:nth-child(1) {
+  --line-offset: -54px;
+  animation-delay: -0.25s;
+}
+
+.visitor-map-loading-lines span:nth-child(2) {
+  --line-offset: 0;
+}
+
+.visitor-map-loading-lines span:nth-child(3) {
+  --line-offset: 54px;
+  animation-delay: 0.25s;
 }
 
 .visitor-map-empty {
@@ -875,6 +973,32 @@ h3 {
 
   50% {
     scale: 1.16;
+  }
+}
+
+@keyframes visitor-map-loading-glow {
+  0%,
+  100% {
+    opacity: 0.44;
+    scale: 0.96;
+  }
+
+  50% {
+    opacity: 0.88;
+    scale: 1.04;
+  }
+}
+
+@keyframes visitor-map-loading-line {
+  0%,
+  100% {
+    opacity: 0.22;
+    width: 54%;
+  }
+
+  50% {
+    opacity: 0.7;
+    width: 76%;
   }
 }
 
@@ -1296,7 +1420,7 @@ h3 {
   content: "";
   position: absolute;
   inset: 4px auto 4px 4px;
-  width: calc((100% - 12px) / 2);
+  width: 70px;
   border-radius: calc(var(--radius) - 12px);
   background: var(--theme);
   box-shadow: 0 8px 18px hsl(var(--theme-hue) 42% 30% / 0.18);
@@ -1304,25 +1428,32 @@ h3 {
 }
 
 .mode-tabs[data-mode="chat"]::before {
-  transform: translateX(calc(100% + 4px));
+  transform: translateX(74px);
 }
 
 .mode-tabs button {
   position: relative;
   z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 70px;
+  min-height: 34px;
   border: 0;
   border-radius: calc(var(--radius) - 12px);
-  padding: 8px 11px;
+  padding: 0 10px;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
   font: inherit;
   font-size: 13px;
   font-weight: 780;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .mode-tabs button[aria-pressed="true"] {
-  color: var(--surface-strong);
+  color: #fff;
 }
 
 .mode-tabs button:disabled {
@@ -1448,6 +1579,27 @@ h3 {
   box-shadow: 0 0 0 3px hsl(var(--theme-hue) 80% 60% / 0.16);
 }
 
+.button.primary.chat-send-button {
+  border-color: hsl(var(--theme-hue) 62% 72% / 0.6);
+  background: hsl(var(--theme-hue) 80% 92% / 0.2);
+  color: var(--accent-strong);
+  box-shadow: inset 0 0 0 1px hsl(var(--theme-hue) 62% 72% / 0.2);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.12);
+}
+
+.button.primary.chat-send-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: hsl(var(--theme-hue) 52% 76% / 0.9);
+  background: hsl(var(--theme-hue) 90% 96% / 0.88);
+  box-shadow: inset 0 0 0 1px hsl(var(--theme-hue) 62% 72% / 0.2);
+}
+
+.button.primary.chat-send-button:disabled {
+  opacity: 1;
+  color: var(--muted);
+  filter: saturate(0.72);
+}
+
 .side-stack {
   display: grid;
   gap: 12px;
@@ -1540,17 +1692,6 @@ h3 {
 
 .source-card svg {
   color: var(--accent);
-}
-
-.query-echo {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 12px;
-  border-top: 1px solid var(--line);
-  padding-top: 12px;
-  color: var(--muted);
-  font-size: 13px;
 }
 
 .tag-row,

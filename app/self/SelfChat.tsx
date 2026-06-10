@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { BookOpenText, CornerDownLeft, FileText, Send } from "lucide-react";
+import { startTransition, useEffect, useMemo, useRef, useState } from "react";
+import { BookOpenText, FileText, Send } from "lucide-react";
 import { MarkdownPreview } from "@/app/MarkdownPreview";
 import type { LlmMeta, LlmMode, PublicLlmSource } from "@/app/client-types";
 
@@ -19,7 +19,6 @@ const initialMessages: ChatMessage[] = [];
 export function SelfChat() {
   const [mode, setMode] = useState<LlmMode>("qa");
   const [question, setQuestion] = useState("");
-  const deferredQuestion = useDeferredValue(question);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [meta, setMeta] = useState<LlmMeta | null>(null);
   const [isSending, setIsSending] = useState(false);
@@ -244,11 +243,11 @@ export function SelfChat() {
         <form className="chat-form" onSubmit={handleSubmit}>
           <input
             aria-label="提问"
-            placeholder={mode === "qa" ? "问：这个项目为什么不是普通博客？" : "聊：你最近长期关注什么？"}
+            placeholder="输入内容"
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
           />
-          <button className="button primary" type="submit" aria-label="发送" disabled={isSending}>
+          <button className="button primary chat-send-button" type="submit" aria-label="发送" disabled={isSending}>
             <Send aria-hidden="true" size={17} />
             {isSending ? "生成中" : "发送"}
           </button>
@@ -278,13 +277,6 @@ export function SelfChat() {
           icon="source"
           scrollable
         />
-
-        {deferredQuestion ? (
-          <div className="query-echo">
-            <CornerDownLeft aria-hidden="true" size={15} />
-            <span>{deferredQuestion}</span>
-          </div>
-        ) : null}
       </aside>
     </div>
   );
