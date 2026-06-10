@@ -5,7 +5,7 @@ import { requireApiUser } from "@/lib/auth";
 import { createAsset } from "@/lib/db";
 
 const uploadDir = path.join(process.cwd(), "storage", "uploads");
-const allowedMimePrefixes = ["image/"];
+const allowedImageTypes = new Set(["image/jpeg", "image/png", "image/gif", "image/webp", "image/avif"]);
 const maxFileSize = 8 * 1024 * 1024;
 
 export async function POST(request: Request) {
@@ -20,8 +20,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "没有收到文件。" }, { status: 400 });
   }
 
-  if (!allowedMimePrefixes.some((prefix) => file.type.startsWith(prefix))) {
-    return NextResponse.json({ error: "当前只允许上传图片。" }, { status: 400 });
+  const extension = mimeToExtension(file.type);
+
+  if (!allowedImageTypes.has(file.type) || !extension) {
+    return NextResponse.json({ error: "当前只允许上传 jpg、png、gif、webp 或 avif 图片。" }, { status: 400 });
   }
 
   if (file.size > maxFileSize) {
@@ -30,7 +32,6 @@ export async function POST(request: Request) {
 
   await mkdir(uploadDir, { recursive: true });
 
-  const extension = path.extname(file.name) || mimeToExtension(file.type);
   const storedName = `${crypto.randomUUID()}${extension}`;
   const storagePath = path.join(uploadDir, storedName);
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -59,8 +60,8 @@ function mimeToExtension(mimeType: string) {
       return ".gif";
     case "image/webp":
       return ".webp";
-    case "image/svg+xml":
-      return ".svg";
+    case "image/avif":
+      return ".avif";
     default:
       return "";
   }

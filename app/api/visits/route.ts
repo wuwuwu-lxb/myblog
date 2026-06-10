@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { recordSiteVisit, type VisitGeo } from "@/lib/db";
+import { recordSiteVisit, recordVisitRateLimit, type VisitGeo } from "@/lib/db";
 
 export async function POST(request: Request) {
   const payload = (await request.json().catch(() => ({}))) as {
@@ -13,6 +13,12 @@ export async function POST(request: Request) {
   const realIp = headerList.get("x-real-ip") ?? "";
   const ipAddress = forwardedFor.split(",")[0]?.trim() || realIp;
   const userAgent = headerList.get("user-agent") ?? "";
+  const rateLimit = recordVisitRateLimit(ipAddress || "local");
+
+  if (!rateLimit.allowed) {
+    return NextResponse.json({ ok: true, recorded: false });
+  }
+
   const geo = await lookupGeo(ipAddress);
 
   recordSiteVisit({
@@ -24,7 +30,7 @@ export async function POST(request: Request) {
     geo,
   });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, recorded: true });
 }
 
 async function lookupGeo(ipAddress: string): Promise<VisitGeo | undefined> {

@@ -29,12 +29,14 @@ GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
 GITHUB_ALLOWED_LOGIN=wuwuwu-lxb
 AUTH_SECRET=
+ALLOW_DEV_AUTH_BYPASS=0
 ```
 
 说明：
 
 - `GITHUB_ALLOWED_LOGIN` 是允许进入工作台的 GitHub 用户名。
 - `AUTH_SECRET` 用随机长字符串，不要提交到 git。
+- `ALLOW_DEV_AUTH_BYPASS` 默认为 `0`。只有本地临时调试且确认不接入公网时，才设置成 `1` 跳过 GitHub 登录。
 - `.env.local` 已经被 `.gitignore` 忽略。
 
 ## giscus 评论
@@ -70,4 +72,3 @@ NEXT_PUBLIC_GISCUS_CATEGORY_ID=
 
 - GitHub OAuth Web flow：`https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps`
 - giscus：`https://giscus.app/`
-

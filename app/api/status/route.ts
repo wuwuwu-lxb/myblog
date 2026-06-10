@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth";
-import { createOnlineStatus, getOnlineStatus } from "@/lib/db";
+import { clearOnlineStatus, createOnlineStatus, getOnlineStatus } from "@/lib/db";
 
 export async function GET() {
   return NextResponse.json({ status: getOnlineStatus() });
@@ -21,4 +21,13 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ status }, { status: 201 });
+}
+
+export async function DELETE() {
+  if (!(await requireApiUser())) {
+    return NextResponse.json({ error: "未登录。" }, { status: 401 });
+  }
+
+  clearOnlineStatus();
+  return NextResponse.json({ status: null });
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Radio, Send } from "lucide-react";
+import { Radio, Send, X } from "lucide-react";
 import type { OnlineStatus } from "@/app/client-types";
 
 type OnlineStatusPublisherProps = {
@@ -39,6 +39,25 @@ export function OnlineStatusPublisher({ initialStatus }: OnlineStatusPublisherPr
     setFeedback("状态已发布，24 小时后自动过期。");
   }
 
+  async function clearStatus() {
+    setIsSaving(true);
+    setFeedback("");
+
+    const response = await fetch("/api/status", {
+      method: "DELETE",
+    });
+    const result = await response.json();
+    setIsSaving(false);
+
+    if (!response.ok) {
+      setFeedback(result.error ?? "状态取消失败。");
+      return;
+    }
+
+    setStatus(null);
+    setFeedback("状态已取消。");
+  }
+
   return (
     <section className="section panel status-publisher">
       <div className="manager-head">
@@ -65,6 +84,12 @@ export function OnlineStatusPublisher({ initialStatus }: OnlineStatusPublisherPr
         </button>
       </form>
       {status ? <p className="muted">当前状态：{status.message}</p> : <p className="muted">当前没有公开状态。</p>}
+      {status ? (
+        <button className="button ghost" disabled={isSaving} onClick={clearStatus} type="button">
+          <X aria-hidden="true" size={16} />
+          取消状态
+        </button>
+      ) : null}
       {feedback ? <p className="muted">{feedback}</p> : null}
     </section>
   );

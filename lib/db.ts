@@ -105,6 +105,13 @@ export type VisitorLocation = {
   lastSeenAt: string;
 };
 
+export type ChatRateLimitResult = {
+  allowed: boolean;
+  remaining: number;
+  limit: number;
+  resetAt: string;
+};
+
 type ContentRow = {
   id: string;
   type: ContentType;
@@ -245,6 +252,14 @@ function migrate(database: DatabaseSync) {
       message TEXT NOT NULL,
       created_at TEXT NOT NULL,
       expires_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS chat_rate_limits (
+      bucket_key TEXT NOT NULL,
+      day TEXT NOT NULL,
+      count INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (bucket_key, day)
     );
   `);
 
@@ -1264,20 +1279,122 @@ export function deleteAsset(id: string) {
 }
 
 export function searchPublicContent(query: string) {
-  const normalized = query.trim().toLowerCase();
-  const publicItems = listContents({ visibility: "public" });
+  return searchPublicContentWithScores(query).map((result) => result.item);
+}
 
-  if (!normalized) {
-    return publicItems.slice(0, 3);
+export function searchPublicContentWithScores(query: string, options: { type?: ContentType; limit?: number } = {}) {
+  const tokens = tokenizeSearchQuery(query);
+  const publicItems = listContents({ visibility: "public" }).filter((item) => !options.type || item.type === options.type);
+  const limit = options.limit ?? 5;
+
+  if (tokens.length === 0) {
+    return publicItems.slice(0, limit).map((item, index) => ({
+      item,
+      score: Math.max(1, 5 - index),
+      matches: [] as string[],
+    }));
   }
 
-  const matched = publicItems.filter((item) =>
-    [item.title, item.category, item.summary, item.body, ...item.tags].some((text) =>
-      text.toLowerCase().includes(normalized),
-    ),
-  );
+  const scored = publicItems
+    .map((item) => scoreContentItem(item, tokens))
+    .filter((result) => result.score > 0)
+    .sort((a, b) => b.score - a.score || Date.parse(b.item.updatedAt) - Date.parse(a.item.updatedAt));
 
-  return matched.length > 0 ? matched : publicItems.slice(0, 3);
+  return (scored.length > 0 ? scored : publicItems.slice(0, limit).map((item, index) => ({
+    item,
+    score: Math.max(0.5, 2 - index * 0.2),
+    matches: [] as string[],
+  }))).slice(0, limit);
+}
+
+function tokenizeSearchQuery(query: string) {
+  const normalized = query.trim().toLowerCase();
+  const tokens = new Set<string>();
+
+  for (const match of normalized.matchAll(/[a-z0-9_+-]+|[\u4e00-\u9fa5]{1,4}/g)) {
+    const token = match[0].trim();
+    if (token.length >= 2 || /[\u4e00-\u9fa5]/.test(token)) {
+      tokens.add(token);
+    }
+  }
+
+  for (const char of normalized.matchAll(/[\u4e00-\u9fa5]/g)) {
+    tokens.add(char[0]);
+  }
+
+  return Array.from(tokens).filter((token) => !["推荐", "文章", "随机", "几篇", "一下", "关于"].includes(token));
+}
+
+function scoreContentItem(item: ContentItem, tokens: string[]) {
+  let score = 0;
+  const matches = new Set<string>();
+  const fields = [
+    { name: "title", text: item.title, weight: 10 },
+    { name: "tag", text: item.tags.join(" "), weight: 8 },
+    { name: "category", text: item.category, weight: 6 },
+    { name: "summary", text: item.summary, weight: 5 },
+    { name: "body", text: item.body.slice(0, 5000), weight: 2 },
+  ];
+
+  for (const token of tokens) {
+    for (const field of fields) {
+      if (field.text.toLowerCase().includes(token)) {
+        score += field.weight;
+        matches.add(token);
+      }
+    }
+  }
+
+  const daysSinceUpdate = Math.max(0, (Date.now() - Date.parse(item.updatedAt)) / 86400000);
+  score += Math.max(0, 1.5 - daysSinceUpdate / 240);
+
+  return {
+    item,
+    score,
+    matches: Array.from(matches),
+  };
+}
+
+export function recordChatRateLimit(bucketKey: string, limit = 30): ChatRateLimitResult {
+  const database = getDb();
+  const safeKey = bucketKey.trim().slice(0, 180) || "anonymous";
+  const now = new Date();
+  const day = now.toISOString().slice(0, 10);
+  const resetAt = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)).toISOString();
+  const existing = database
+    .prepare("SELECT count FROM chat_rate_limits WHERE bucket_key = ? AND day = ?")
+    .get(safeKey, day) as { count: number } | undefined;
+
+  if (existing && existing.count >= limit) {
+    return {
+      allowed: false,
+      remaining: 0,
+      limit,
+      resetAt,
+    };
+  }
+
+  const nextCount = (existing?.count ?? 0) + 1;
+  database
+    .prepare(
+      `
+      INSERT INTO chat_rate_limits (bucket_key, day, count, updated_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(bucket_key, day) DO UPDATE SET count = excluded.count, updated_at = excluded.updated_at
+    `,
+    )
+    .run(safeKey, day, nextCount, now.toISOString());
+
+  return {
+    allowed: true,
+    remaining: Math.max(0, limit - nextCount),
+    limit,
+    resetAt,
+  };
+}
+
+export function recordVisitRateLimit(bucketKey: string, limit = 120) {
+  return recordChatRateLimit(`visit:${bucketKey}`, limit);
 }
 
 export function recordSiteVisit(input: {
@@ -1400,6 +1517,10 @@ export function getOnlineStatus(): OnlineStatus | null {
         expiresAt: row.expiresAt,
       }
     : null;
+}
+
+export function clearOnlineStatus() {
+  getDb().prepare("DELETE FROM online_statuses").run();
 }
 
 function ensureCategory(database: DatabaseSync, name: string, description = "") {

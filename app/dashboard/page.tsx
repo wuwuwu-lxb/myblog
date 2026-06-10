@@ -46,9 +46,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     <div className="page">
       <p className="eyebrow">私有工作台原型</p>
       <h1>今天的思绪先落地</h1>
-      <p className="lead">
-        这里已经接入 SQLite 和图片上传。你保存的公开文章会出现在博客里，也会成为 self-LLM 的检索来源。
-      </p>
       <AdminNav />
 
       <section className="section grid-3">

@@ -36,7 +36,11 @@ export function isAuthConfigured() {
 }
 
 export function isDevAuthBypassEnabled() {
-  return process.env.NODE_ENV !== "production" && !isAuthConfigured();
+  return (
+    process.env.NODE_ENV !== "production" &&
+    process.env.ALLOW_DEV_AUTH_BYPASS === "1" &&
+    !isAuthConfigured()
+  );
 }
 
 export async function getCurrentUser() {

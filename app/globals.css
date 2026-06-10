@@ -302,6 +302,7 @@ h3 {
 }
 
 .mode-toggle {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 2px;
@@ -311,7 +312,26 @@ h3 {
   background: hsl(var(--theme-hue) 76% 98% / 0.5);
 }
 
+.mode-toggle::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 25px;
+  height: 25px;
+  border-radius: 999px;
+  background: var(--theme);
+  box-shadow: 0 8px 18px hsl(var(--theme-hue) 42% 30% / 0.18);
+  transition: transform 360ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mode-toggle[data-mode="dark"]::before {
+  transform: translateX(27px);
+}
+
 .mode-button {
+  position: relative;
+  z-index: 1;
   display: inline-grid;
   width: 25px;
   height: 25px;
@@ -324,7 +344,6 @@ h3 {
 }
 
 .mode-button[aria-pressed="true"] {
-  background: var(--theme);
   color: #fff;
 }
 
@@ -395,6 +414,13 @@ h3 {
   border-color: hsl(var(--theme-hue) 52% 76% / 0.9);
   background: hsl(var(--theme-hue) 90% 96% / 0.88);
   color: var(--accent-strong);
+}
+
+.top-nav a[aria-current="page"] {
+  border-color: hsl(var(--theme-hue) 62% 72% / 0.6);
+  background: hsl(var(--theme-hue) 80% 92% / 0.2);
+  color: var(--accent-strong);
+  box-shadow: inset 0 0 0 1px hsl(var(--theme-hue) 62% 72% / 0.2);
 }
 
 .page,
@@ -1226,6 +1252,91 @@ h3 {
   animation: card-rise var(--card-motion) both;
 }
 
+.chat-panel > .chat-recommendations {
+  border-top: 1px solid var(--line);
+  padding: 12px;
+  background: hsl(var(--theme-hue) 40% 98% / 0.12);
+}
+
+.chat-recommendations .panel {
+  border: 0;
+  border-radius: calc(var(--radius) - 8px);
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  animation: none;
+}
+
+.chat-recommendations .source-list {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.chat-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--line);
+  padding: 12px;
+  background: hsl(var(--theme-hue) 40% 98% / 0.16);
+}
+
+.mode-tabs {
+  position: relative;
+  display: inline-flex;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) - 8px);
+  padding: 4px;
+  background: var(--glass);
+}
+
+.mode-tabs::before {
+  content: "";
+  position: absolute;
+  inset: 4px auto 4px 4px;
+  width: calc((100% - 12px) / 2);
+  border-radius: calc(var(--radius) - 12px);
+  background: var(--theme);
+  box-shadow: 0 8px 18px hsl(var(--theme-hue) 42% 30% / 0.18);
+  transition: transform 360ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mode-tabs[data-mode="chat"]::before {
+  transform: translateX(calc(100% + 4px));
+}
+
+.mode-tabs button {
+  position: relative;
+  z-index: 1;
+  border: 0;
+  border-radius: calc(var(--radius) - 12px);
+  padding: 8px 11px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 780;
+}
+
+.mode-tabs button[aria-pressed="true"] {
+  color: var(--surface-strong);
+}
+
+.mode-tabs button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.chat-quota {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
 .chat-log {
   display: grid;
   align-content: start;
@@ -1254,8 +1365,13 @@ h3 {
 
 .message.user {
   justify-self: end;
-  background: linear-gradient(135deg, hsl(var(--theme-hue) 64% 45%), hsl(calc(var(--theme-hue) + 20) 62% 38%));
-  color: var(--surface);
+  border: 1px solid hsl(var(--theme-hue) 62% 72% / 0.42);
+  background: hsl(var(--theme-hue) 80% 92% / 0.18);
+  color: var(--text);
+  box-shadow:
+    inset 0 0 0 1px hsl(var(--theme-hue) 62% 72% / 0.18),
+    0 12px 30px hsl(var(--theme-hue) 36% 24% / 0.08);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.12);
 }
 
 .message.assistant {
@@ -1263,6 +1379,29 @@ h3 {
   border: 1px solid var(--line);
   background: var(--glass);
   backdrop-filter: blur(var(--glass-blur)) saturate(1.12);
+}
+
+.message .markdown-preview,
+.message .markdown-preview > :last-child {
+  margin-bottom: 0;
+}
+
+.message .markdown-preview > :first-child {
+  margin-top: 0;
+}
+
+.message .markdown-preview p {
+  margin: 0 0 8px;
+}
+
+.message .markdown-preview ul,
+.message .markdown-preview ol {
+  margin: 6px 0 8px;
+  padding-left: 20px;
+}
+
+.message .markdown-code-block {
+  margin: 8px 0;
 }
 
 .chat-form {
@@ -1314,9 +1453,89 @@ h3 {
   gap: 12px;
 }
 
+.chat-actions-panel {
+  padding: 12px;
+}
+
+.chat-actions-panel .button {
+  transition:
+    transform 360ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 360ms cubic-bezier(0.16, 1, 0.3, 1),
+    background 360ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 360ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.chat-actions-panel .button:hover {
+  transform: translateY(-2px);
+  border-color: hsl(var(--theme-hue) 62% 72% / 0.56);
+  background: hsl(var(--theme-hue) 80% 92% / 0.16);
+  box-shadow: inset 0 0 0 1px hsl(var(--theme-hue) 62% 72% / 0.22);
+}
+
+.chat-clear-feedback {
+  margin: 8px 0 0;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 760;
+}
+
 .source-card {
   position: relative;
   box-shadow: none;
+  transition:
+    transform 420ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 420ms cubic-bezier(0.16, 1, 0.3, 1),
+    background 420ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 420ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.chat-recommendations .source-card:hover {
+  transform: translateY(-3px);
+  border-color: hsl(var(--theme-hue) 62% 72% / 0.52);
+  background: hsl(var(--theme-hue) 80% 92% / 0.16);
+  box-shadow:
+    0 16px 34px hsl(var(--theme-hue) 36% 24% / 0.1),
+    inset 0 0 0 1px hsl(var(--theme-hue) 62% 72% / 0.28);
+}
+
+.source-list.scrollable {
+  max-height: min(50svh, 460px);
+  overflow: auto;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+}
+
+.source-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  color: var(--faint);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.source-card-footer a {
+  color: var(--accent-strong);
+}
+
+.giscus-panel {
+  overflow: hidden;
+}
+
+.giscus-host {
+  min-height: 220px;
+  overflow: hidden;
+}
+
+.giscus-host iframe {
+  width: 100% !important;
+}
+
+.full-width {
+  width: 100%;
+  justify-content: center;
 }
 
 .source-card svg {
@@ -1581,7 +1800,16 @@ h3 {
 .transition-source [data-shared-key="article-title"],
 .shared-article-title-detail {
   view-transition-name: article-title;
+}
+
+.transition-source [data-shared-key="article-title"] {
   contain: layout paint;
+}
+
+.shared-article-title-detail {
+  overflow: visible;
+  padding-top: 0.08em;
+  line-height: 1.02;
 }
 
 .transition-source [data-shared-key="article-summary"],

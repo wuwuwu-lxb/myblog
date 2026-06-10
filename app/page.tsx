@@ -35,7 +35,7 @@ export default function HomePage() {
               </span>
             </span>
           </div>
-          <h1>wuwuwu</h1>
+          <h1>小唔的窝</h1>
           <p>Coding the world.</p>
           <div className="home-socials">
             <a href={githubUrl} target="_blank" rel="noreferrer" aria-label="GitHub">
@@ -88,12 +88,10 @@ export default function HomePage() {
         {visitorLocations.length > 0 ? (
           <>
             <VisitorMap locations={visitorLocations} />
-            <p>访问 IP 会尝试解析到城市级位置；内网、本机或解析失败的访问不会显示为地图点。</p>
           </>
         ) : (
           <div className="visitor-map-empty">
             <strong>等待公网访客</strong>
-            <p>当前访问来自本机、内网或 GeoIP 解析失败，所以没有生成地图点。部署到公网后会自动记录真实位置。</p>
           </div>
         )}
       </section>

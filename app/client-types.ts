@@ -55,6 +55,33 @@ export type ContentListItem = {
   viewCount: number;
 };
 
+export type LlmMode = "qa" | "chat";
+export type LlmIntent = "answer" | "recommend" | "mixed";
+
+export type PublicLlmSource = {
+  id: string;
+  type: ContentType;
+  title: string;
+  slug: string;
+  summary: string;
+  category: string;
+  tags: string[];
+  publishedAt: string;
+  score: number;
+};
+
+export type LlmMeta = {
+  mode: LlmMode;
+  intent: LlmIntent;
+  sources: PublicLlmSource[];
+  recommendations: PublicLlmSource[];
+  rateLimit?: {
+    remaining: number;
+    limit: number;
+    resetAt: string;
+  };
+};
+
 export type OnlineStatus = {
   id: string;
   message: string;

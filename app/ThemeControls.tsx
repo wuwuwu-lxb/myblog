@@ -77,7 +77,7 @@ export function ThemeControls() {
 
   return (
     <div className="nav-theme-controls" aria-label="全局主题">
-      <div className="mode-toggle" aria-label="浅色和深色切换">
+      <div className="mode-toggle" data-mode={mode} aria-label="浅色和深色切换">
         <button
           aria-label="切换到浅色模式"
           aria-pressed={mode === "light"}
