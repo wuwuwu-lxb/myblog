@@ -64,8 +64,9 @@ export async function POST(request: Request) {
         await pipeLlmStream(llmStream, controller);
         sendEvent(controller, "done", {});
       } catch (error) {
+        console.error("self-LLM upstream request failed", error);
         sendEvent(controller, "error", {
-          error: error instanceof Error ? error.message : "LLM 请求失败。",
+          error: "self-LLM 当前暂时不可用，请稍后再试。",
         });
       } finally {
         controller.close();
